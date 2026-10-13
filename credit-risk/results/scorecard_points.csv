@@ -1,0 +1,60 @@
+feature,bin,woe,points
+annual_income,"(-inf, 35000]",-0.4606,50.1
+annual_income,"(35000, 43500]",-0.3783,52.3
+annual_income,"(43500, 50800]",-0.1173,59.1
+annual_income,"(50800, 65500]",-0.09,59.9
+annual_income,"(65500, 73800]",0.0932,64.7
+annual_income,"(73800, 83800]",0.1857,67.1
+annual_income,"(83800, 97600]",0.274,69.5
+annual_income,"(97600, 121200]",0.2859,69.8
+annual_income,"(121200, inf]",0.6953,80.6
+dti,"(-inf, 8.7]",0.7135,77.0
+dti,"(8.7, 12.3]",0.3059,68.6
+dti,"(12.3, 14.9]",0.2569,67.5
+dti,"(14.9, 17.1]",0.134,65.0
+dti,"(17.1, 19.2]",0.0551,63.4
+dti,"(19.2, 23.4]",-0.034,61.5
+dti,"(23.4, 26]",-0.1609,58.9
+dti,"(26, 29.6]",-0.3058,55.9
+dti,"(29.6, inf]",-0.5406,51.1
+revolving_utilization,"(-inf, 0.153]",0.612,77.1
+revolving_utilization,"(0.153, 0.232]",0.5938,76.6
+revolving_utilization,"(0.232, 0.298]",0.3201,70.0
+revolving_utilization,"(0.298, 0.36]",0.2504,68.3
+revolving_utilization,"(0.36, 0.424]",0.2013,67.1
+revolving_utilization,"(0.424, 0.488]",0.013,62.6
+revolving_utilization,"(0.488, 0.559]",-0.0167,61.8
+revolving_utilization,"(0.559, 0.641]",-0.205,57.3
+revolving_utilization,"(0.641, 0.748]",-0.435,51.7
+revolving_utilization,"(0.748, inf]",-0.7119,45.0
+delinq_2y,"(-inf, 0]",0.1502,65.7
+delinq_2y,"(0, inf]",-0.4759,51.3
+inquiries_6m,"(-inf, 0]",0.2229,67.4
+inquiries_6m,"(0, 1]",0.0275,62.9
+inquiries_6m,"(1, 2]",-0.1878,57.9
+inquiries_6m,"(2, inf]",-0.5004,50.7
+credit_history_months,"(-inf, 53]",-0.4745,52.2
+credit_history_months,"(53, 103]",-0.2855,56.2
+credit_history_months,"(103, 118]",0.0218,62.7
+credit_history_months,"(118, 135]",0.1218,64.8
+credit_history_months,"(135, 154]",0.2014,66.5
+credit_history_months,"(154, 178]",0.2689,67.9
+credit_history_months,"(178, 216]",0.4516,71.8
+credit_history_months,"(216, inf]",0.8339,79.8
+employment_years,"(-inf, 2]",-0.4494,56.8
+employment_years,"(2, 3]",-0.3824,57.6
+employment_years,"(3, 4]",-0.1652,60.3
+employment_years,"(4, 5]",-0.1336,60.6
+employment_years,"(5, 6]",-0.0043,62.2
+employment_years,"(6, 8]",0.194,64.6
+employment_years,"(8, 9]",0.3758,66.8
+employment_years,"(9, inf]",0.6201,69.7
+term_months,"(-inf, 36]",0.0761,64.3
+term_months,"(36, inf]",-0.1711,57.5
+purpose,small_business,-0.4157,48.9
+purpose,medical,-0.1876,56.2
+purpose,other,-0.1749,56.6
+purpose,auto,0.0082,62.5
+purpose,debt_consolidation,0.0209,62.9
+purpose,home_improvement,0.1346,66.6
+purpose,credit_card,0.1694,67.7

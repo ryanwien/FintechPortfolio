@@ -1,0 +1,89 @@
+{
+  "slug": "credit",
+  "title": "Credit underwriting scorecard with model-risk documentation",
+  "tagline": "WoE logistic scorecard vs monotonic GBM challenger, validated out-of-time, with fair-lending tests, Reg B reason codes and a generated SR 11-7 model card.",
+  "lane": "Lending & model risk",
+  "stack": [
+    "Python",
+    "scikit-learn",
+    "pandas",
+    "NumPy"
+  ],
+  "metrics": [
+    {
+      "label": "OOT AUC (champion)",
+      "value": "0.700",
+      "unit": "",
+      "note": "Gini 0.399, KS 0.296"
+    },
+    {
+      "label": "Score PSI dev vs OOT",
+      "value": "0.017",
+      "unit": "",
+      "note": "stable"
+    },
+    {
+      "label": "Adverse impact ratio",
+      "value": "0.914",
+      "unit": "",
+      "note": "four-fifths rule passed; proxy removal cost 0.0109 AUC"
+    },
+    {
+      "label": "Approval at profit cutoff",
+      "value": "63.9",
+      "unit": "%",
+      "note": "bad rate 9.05% at cutoff 555"
+    },
+    {
+      "label": "Challenger AUC uplift",
+      "value": "-0.0028",
+      "unit": "",
+      "note": "champion kept: WoE scorecard"
+    }
+  ],
+  "highlights": [
+    "Monotonic WoE binning and 600 @ 30:1, PDO 20 points scaling, unit-tested",
+    "Out-of-time validation: AUC, Gini, KS, calibration by decile, PSI and per-feature CSI",
+    "Four-fifths rule and equal-opportunity gap, with a proxy-removal mitigation and its AUC cost",
+    "Top-4 ECOA / Reg B adverse action reasons from points lost per characteristic",
+    "Profit-based cutoff in integer cents and a generated SR 11-7 style model card"
+  ],
+  "limitations": [
+    "Synthetic applicants with a logit-additive default process favour the scorecard",
+    "No reject inference; PD under-predicts in the stressed OOT window",
+    "Single binary protected attribute; flat unit economics"
+  ],
+  "series": {
+    "name": "OOT approval rate vs bad rate of approved loans by cutoff",
+    "x": [
+      0.9977,
+      0.9906,
+      0.9699,
+      0.923,
+      0.8418,
+      0.7147,
+      0.5637,
+      0.3999,
+      0.248,
+      0.1326,
+      0.0622,
+      0.0224,
+      0.0065
+    ],
+    "y": [
+      0.1438,
+      0.1417,
+      0.1364,
+      0.1261,
+      0.1138,
+      0.0975,
+      0.0815,
+      0.0649,
+      0.0532,
+      0.0438,
+      0.035,
+      0.0147,
+      0.0
+    ]
+  }
+}

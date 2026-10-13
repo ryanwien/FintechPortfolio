@@ -1,0 +1,677 @@
+{
+  "data": {
+    "seed": 20261013,
+    "applicants": 60000,
+    "development": 44852,
+    "development_train": 31416,
+    "development_holdout": 13436,
+    "out_of_time": 15148,
+    "dev_months": "0-17",
+    "oot_months": "18-23",
+    "bad_rate_dev": 0.1181,
+    "bad_rate_oot": 0.1451,
+    "protected_group_share_B": 0.3005
+  },
+  "scaling": {
+    "base_score": 600.0,
+    "base_odds": 30.0,
+    "pdo": 20.0,
+    "factor": 28.8539,
+    "offset": 501.8622
+  },
+  "champion": {
+    "type": "WoE logistic scorecard",
+    "features": [
+      "annual_income",
+      "dti",
+      "revolving_utilization",
+      "delinq_2y",
+      "inquiries_6m",
+      "credit_history_months",
+      "employment_years",
+      "term_months",
+      "purpose"
+    ],
+    "dropped_for_sign": [
+      "loan_amount"
+    ],
+    "dropped_for_low_iv": [],
+    "min_iv": 0.01,
+    "geographic_proxy_removed": true,
+    "intercept": -2.0209,
+    "coefficients": {
+      "annual_income": -0.9141,
+      "dti": -0.7157,
+      "revolving_utilization": -0.8405,
+      "delinq_2y": -0.7943,
+      "inquiries_6m": -0.7993,
+      "credit_history_months": -0.7299,
+      "employment_years": -0.4164,
+      "term_months": -0.9511,
+      "purpose": -1.1162
+    },
+    "all_coefficients_negative": true,
+    "in_time": {
+      "auc": 0.7074,
+      "gini": 0.4149,
+      "ks": 0.3056
+    },
+    "oot": {
+      "auc": 0.6997,
+      "gini": 0.3994,
+      "ks": 0.2958
+    },
+    "score_psi_dev_vs_oot": 0.0171,
+    "score_psi_label": "stable",
+    "oot_observed_bad_rate": 0.1451,
+    "oot_mean_predicted_pd": 0.1283,
+    "oot_calibration_ratio_obs_to_pred": 1.1306,
+    "calibration_by_decile": [
+      {
+        "decile": 1,
+        "count": 1514,
+        "predicted_pd": 0.3283,
+        "observed": 0.3468,
+        "ratio_obs_to_pred": 1.0562
+      },
+      {
+        "decile": 2,
+        "count": 1515,
+        "predicted_pd": 0.2167,
+        "observed": 0.2396,
+        "ratio_obs_to_pred": 1.1058
+      },
+      {
+        "decile": 3,
+        "count": 1515,
+        "predicted_pd": 0.1706,
+        "observed": 0.1908,
+        "ratio_obs_to_pred": 1.1179
+      },
+      {
+        "decile": 4,
+        "count": 1515,
+        "predicted_pd": 0.14,
+        "observed": 0.1525,
+        "ratio_obs_to_pred": 1.0892
+      },
+      {
+        "decile": 5,
+        "count": 1515,
+        "predicted_pd": 0.1149,
+        "observed": 0.1531,
+        "ratio_obs_to_pred": 1.3331
+      },
+      {
+        "decile": 6,
+        "count": 1514,
+        "predicted_pd": 0.0952,
+        "observed": 0.1083,
+        "ratio_obs_to_pred": 1.1378
+      },
+      {
+        "decile": 7,
+        "count": 1515,
+        "predicted_pd": 0.0784,
+        "observed": 0.0891,
+        "ratio_obs_to_pred": 1.1368
+      },
+      {
+        "decile": 8,
+        "count": 1515,
+        "predicted_pd": 0.0629,
+        "observed": 0.0733,
+        "ratio_obs_to_pred": 1.1655
+      },
+      {
+        "decile": 9,
+        "count": 1515,
+        "predicted_pd": 0.0477,
+        "observed": 0.0581,
+        "ratio_obs_to_pred": 1.2181
+      },
+      {
+        "decile": 10,
+        "count": 1515,
+        "predicted_pd": 0.0289,
+        "observed": 0.0396,
+        "ratio_obs_to_pred": 1.3704
+      }
+    ],
+    "feature_iv": [
+      {
+        "feature": "revolving_utilization",
+        "iv": 0.169,
+        "strength": "medium",
+        "bins": 10,
+        "in_model": true,
+        "coefficient": -0.8405,
+        "csi_dev_vs_oot": 0.0365
+      },
+      {
+        "feature": "credit_history_months",
+        "iv": 0.1343,
+        "strength": "medium",
+        "bins": 8,
+        "in_model": true,
+        "coefficient": -0.7299,
+        "csi_dev_vs_oot": 0.0005
+      },
+      {
+        "feature": "employment_years",
+        "iv": 0.1171,
+        "strength": "medium",
+        "bins": 8,
+        "in_model": true,
+        "coefficient": -0.4164,
+        "csi_dev_vs_oot": 0.0003
+      },
+      {
+        "feature": "dti",
+        "iv": 0.104,
+        "strength": "medium",
+        "bins": 9,
+        "in_model": true,
+        "coefficient": -0.7157,
+        "csi_dev_vs_oot": 0.0013
+      },
+      {
+        "feature": "annual_income",
+        "iv": 0.1001,
+        "strength": "medium",
+        "bins": 9,
+        "in_model": true,
+        "coefficient": -0.9141,
+        "csi_dev_vs_oot": 0.0002
+      },
+      {
+        "feature": "delinq_2y",
+        "iv": 0.0711,
+        "strength": "weak",
+        "bins": 2,
+        "in_model": true,
+        "coefficient": -0.7943,
+        "csi_dev_vs_oot": 0.0012
+      },
+      {
+        "feature": "inquiries_6m",
+        "iv": 0.0491,
+        "strength": "weak",
+        "bins": 4,
+        "in_model": true,
+        "coefficient": -0.7993,
+        "csi_dev_vs_oot": 0.0643
+      },
+      {
+        "feature": "loan_amount",
+        "iv": 0.0372,
+        "strength": "weak",
+        "bins": 8,
+        "in_model": false,
+        "coefficient": null,
+        "csi_dev_vs_oot": 0.0007
+      },
+      {
+        "feature": "purpose",
+        "iv": 0.0229,
+        "strength": "weak",
+        "bins": 7,
+        "in_model": true,
+        "coefficient": -1.1162,
+        "csi_dev_vs_oot": 0.0002
+      },
+      {
+        "feature": "term_months",
+        "iv": 0.013,
+        "strength": "unpredictive",
+        "bins": 2,
+        "in_model": true,
+        "coefficient": -0.9511,
+        "csi_dev_vs_oot": 0.0001
+      }
+    ]
+  },
+  "challenger": {
+    "type": "HistGradientBoosting with monotonic constraints",
+    "features": [
+      "annual_income",
+      "dti",
+      "revolving_utilization",
+      "delinq_2y",
+      "inquiries_6m",
+      "credit_history_months",
+      "employment_years",
+      "loan_amount",
+      "term_months",
+      "purpose"
+    ],
+    "monotonic_constraints": {
+      "annual_income": -1,
+      "dti": 1,
+      "revolving_utilization": 1,
+      "delinq_2y": 1,
+      "inquiries_6m": 1,
+      "credit_history_months": -1,
+      "employment_years": -1,
+      "loan_amount": 0,
+      "term_months": 1
+    },
+    "in_time": {
+      "auc": 0.702,
+      "gini": 0.4041,
+      "ks": 0.3025
+    },
+    "oot": {
+      "auc": 0.6969,
+      "gini": 0.3937,
+      "ks": 0.291
+    },
+    "pd_psi_dev_vs_oot": 0.0175,
+    "oot_auc_uplift_vs_champion": -0.0028,
+    "fairness_at_matched_approval": {
+      "approval_rate": {
+        "A": 0.6588,
+        "B": 0.593
+      },
+      "approval_rate_among_goods": {
+        "A": 0.695,
+        "B": 0.642
+      },
+      "adverse_impact_ratio": 0.9001,
+      "passes_four_fifths": true,
+      "equal_opportunity_gap": 0.053
+    }
+  },
+  "decision": {
+    "challenger_min_auc_uplift": 0.02,
+    "adopt_challenger": false,
+    "champion": "WoE scorecard"
+  },
+  "fairness": {
+    "protected_attribute_used_as_input": false,
+    "reference_group": "A",
+    "protected_group": "B",
+    "with_proxy": {
+      "features": [
+        "annual_income",
+        "dti",
+        "revolving_utilization",
+        "delinq_2y",
+        "inquiries_6m",
+        "credit_history_months",
+        "employment_years",
+        "term_months",
+        "purpose",
+        "region"
+      ],
+      "oot_auc": 0.7106,
+      "cutoff": 555,
+      "approval_rate": {
+        "A": 0.6965,
+        "B": 0.5247
+      },
+      "approval_rate_among_goods": {
+        "A": 0.7341,
+        "B": 0.5759
+      },
+      "adverse_impact_ratio": 0.7533,
+      "passes_four_fifths": false,
+      "equal_opportunity_gap": 0.1582
+    },
+    "proxy_removed": {
+      "features": [
+        "annual_income",
+        "dti",
+        "revolving_utilization",
+        "delinq_2y",
+        "inquiries_6m",
+        "credit_history_months",
+        "employment_years",
+        "term_months",
+        "purpose"
+      ],
+      "oot_auc": 0.6997,
+      "cutoff": 555,
+      "approval_rate": {
+        "A": 0.656,
+        "B": 0.5995
+      },
+      "approval_rate_among_goods": {
+        "A": 0.6922,
+        "B": 0.6488
+      },
+      "adverse_impact_ratio": 0.9139,
+      "passes_four_fifths": true,
+      "equal_opportunity_gap": 0.0433
+    },
+    "mitigation_auc_cost": 0.0109,
+    "proxy_auc_tolerance": 0.015,
+    "mitigation_adopted": true
+  },
+  "strategy": {
+    "unit_economics": {
+      "lifetime_margin": "0.09",
+      "lgd": "0.70",
+      "ead_fraction": "0.75",
+      "breakeven_pd": "0.1463"
+    },
+    "cutoff_selected_on": "development holdout, expected profit from model PD",
+    "profit_cutoff": 555,
+    "breakeven_score": 552.7,
+    "oot_at_cutoff": {
+      "cutoff": 555,
+      "approval_rate": 0.6387,
+      "approved": 9675,
+      "bad_rate_approved": 0.0905,
+      "booked_cents": 15696600000,
+      "expected_loss_rate": 0.0373,
+      "realized_loss_rate": 0.0463,
+      "expected_profit_cents": 727047911,
+      "realized_profit_cents": 561288000
+    },
+    "oot_approve_all": {
+      "cutoff": -10000,
+      "approval_rate": 1.0,
+      "approved": 15148,
+      "bad_rate_approved": 0.1451,
+      "booked_cents": 22394900000,
+      "expected_loss_rate": 0.0603,
+      "realized_loss_rate": 0.0696,
+      "expected_profit_cents": 434664418,
+      "realized_profit_cents": 189975000
+    },
+    "oot_cutoff_table": [
+      {
+        "cutoff": 500,
+        "approval_rate": 0.9977,
+        "approved": 15113,
+        "bad_rate_approved": 0.1438,
+        "booked_cents": 22351100000,
+        "expected_loss_rate": 0.0598,
+        "realized_loss_rate": 0.069,
+        "expected_profit_cents": 445874228,
+        "realized_profit_cents": 204575250
+      },
+      {
+        "cutoff": 510,
+        "approval_rate": 0.9906,
+        "approved": 15006,
+        "bad_rate_approved": 0.1417,
+        "booked_cents": 22252600000,
+        "expected_loss_rate": 0.059,
+        "realized_loss_rate": 0.0683,
+        "expected_profit_cents": 465171882,
+        "realized_profit_cents": 223477500
+      },
+      {
+        "cutoff": 520,
+        "approval_rate": 0.9699,
+        "approved": 14692,
+        "bad_rate_approved": 0.1364,
+        "booked_cents": 21934200000,
+        "expected_loss_rate": 0.0569,
+        "realized_loss_rate": 0.0662,
+        "expected_profit_cents": 511094575,
+        "realized_profit_cents": 273295500
+      },
+      {
+        "cutoff": 530,
+        "approval_rate": 0.923,
+        "approved": 13982,
+        "bad_rate_approved": 0.1261,
+        "booked_cents": 21135700000,
+        "expected_loss_rate": 0.053,
+        "realized_loss_rate": 0.0624,
+        "expected_profit_cents": 589253146,
+        "realized_profit_cents": 357025500
+      },
+      {
+        "cutoff": 540,
+        "approval_rate": 0.8418,
+        "approved": 12752,
+        "bad_rate_approved": 0.1138,
+        "booked_cents": 19637450000,
+        "expected_loss_rate": 0.0476,
+        "realized_loss_rate": 0.0567,
+        "expected_profit_cents": 673189726,
+        "realized_profit_cents": 462033000
+      },
+      {
+        "cutoff": 550,
+        "approval_rate": 0.7147,
+        "approved": 10826,
+        "bad_rate_approved": 0.0975,
+        "booked_cents": 17209900000,
+        "expected_loss_rate": 0.0408,
+        "realized_loss_rate": 0.0499,
+        "expected_profit_cents": 725931065,
+        "realized_profit_cents": 543888750
+      },
+      {
+        "cutoff": 560,
+        "approval_rate": 0.5637,
+        "approved": 8539,
+        "bad_rate_approved": 0.0815,
+        "booked_cents": 14110550000,
+        "expected_loss_rate": 0.034,
+        "realized_loss_rate": 0.042,
+        "expected_profit_cents": 708051490,
+        "realized_profit_cents": 575460750
+      },
+      {
+        "cutoff": 570,
+        "approval_rate": 0.3999,
+        "approved": 6057,
+        "bad_rate_approved": 0.0649,
+        "booked_cents": 10571700000,
+        "expected_loss_rate": 0.0276,
+        "realized_loss_rate": 0.0341,
+        "expected_profit_cents": 609952728,
+        "realized_profit_cents": 529040250
+      },
+      {
+        "cutoff": 580,
+        "approval_rate": 0.248,
+        "approved": 3757,
+        "bad_rate_approved": 0.0532,
+        "booked_cents": 6905150000,
+        "expected_loss_rate": 0.0216,
+        "realized_loss_rate": 0.0274,
+        "expected_profit_cents": 446987032,
+        "realized_profit_cents": 399540750
+      },
+      {
+        "cutoff": 590,
+        "approval_rate": 0.1326,
+        "approved": 2008,
+        "bad_rate_approved": 0.0438,
+        "booked_cents": 3933550000,
+        "expected_loss_rate": 0.0166,
+        "realized_loss_rate": 0.0223,
+        "expected_profit_cents": 277753561,
+        "realized_profit_cents": 251253000
+      },
+      {
+        "cutoff": 600,
+        "approval_rate": 0.0622,
+        "approved": 942,
+        "bad_rate_approved": 0.035,
+        "booked_cents": 1980550000,
+        "expected_loss_rate": 0.0126,
+        "realized_loss_rate": 0.0158,
+        "expected_profit_cents": 148920443,
+        "realized_profit_cents": 141534000
+      },
+      {
+        "cutoff": 610,
+        "approval_rate": 0.0224,
+        "approved": 339,
+        "bad_rate_approved": 0.0147,
+        "booked_cents": 755650000,
+        "expected_loss_rate": 0.0093,
+        "realized_loss_rate": 0.0056,
+        "expected_profit_cents": 59741930,
+        "realized_profit_cents": 63057750
+      },
+      {
+        "cutoff": 620,
+        "approval_rate": 0.0065,
+        "approved": 98,
+        "bad_rate_approved": 0.0,
+        "booked_cents": 250100000,
+        "expected_loss_rate": 0.0071,
+        "realized_loss_rate": 0.0,
+        "expected_profit_cents": 20424663,
+        "realized_profit_cents": 22509000
+      }
+    ]
+  },
+  "adverse_action": {
+    "declined_oot": 5473,
+    "declined_with_4_reasons": 5473,
+    "primary_reason_counts": {
+      "R03": {
+        "statement": "Proportion of revolving balances to credit limits too high",
+        "count": 2083
+      },
+      "R01": {
+        "statement": "Income insufficient for amount of credit requested",
+        "count": 1644
+      },
+      "R06": {
+        "statement": "Length of credit history insufficient",
+        "count": 1317
+      },
+      "R02": {
+        "statement": "Excessive obligations in relation to income",
+        "count": 410
+      },
+      "R10": {
+        "statement": "Purpose of loan",
+        "count": 14
+      },
+      "R05": {
+        "statement": "Number of recent inquiries on credit bureau report",
+        "count": 5
+      }
+    },
+    "top4_reason_counts": {
+      "R06": {
+        "statement": "Length of credit history insufficient",
+        "count": 4764
+      },
+      "R01": {
+        "statement": "Income insufficient for amount of credit requested",
+        "count": 4634
+      },
+      "R03": {
+        "statement": "Proportion of revolving balances to credit limits too high",
+        "count": 4321
+      },
+      "R02": {
+        "statement": "Excessive obligations in relation to income",
+        "count": 4188
+      },
+      "R04": {
+        "statement": "Delinquent past or present credit obligations with others",
+        "count": 1334
+      },
+      "R05": {
+        "statement": "Number of recent inquiries on credit bureau report",
+        "count": 1283
+      },
+      "R07": {
+        "statement": "Length of employment",
+        "count": 747
+      },
+      "R10": {
+        "statement": "Purpose of loan",
+        "count": 620
+      },
+      "R09": {
+        "statement": "Requested repayment term",
+        "count": 1
+      }
+    },
+    "samples": [
+      {
+        "application_id": 44856,
+        "score": 542.7,
+        "reasons": [
+          {
+            "code": "R03",
+            "statement": "Proportion of revolving balances to credit limits too high",
+            "points_lost": 32.1
+          },
+          {
+            "code": "R06",
+            "statement": "Length of credit history insufficient",
+            "points_lost": 23.6
+          },
+          {
+            "code": "R02",
+            "statement": "Excessive obligations in relation to income",
+            "points_lost": 21.0
+          },
+          {
+            "code": "R01",
+            "statement": "Income insufficient for amount of credit requested",
+            "points_lost": 11.1
+          }
+        ]
+      },
+      {
+        "application_id": 44863,
+        "score": 541.4,
+        "reasons": [
+          {
+            "code": "R03",
+            "statement": "Proportion of revolving balances to credit limits too high",
+            "points_lost": 32.1
+          },
+          {
+            "code": "R06",
+            "statement": "Length of credit history insufficient",
+            "points_lost": 23.6
+          },
+          {
+            "code": "R07",
+            "statement": "Length of employment",
+            "points_lost": 12.9
+          },
+          {
+            "code": "R02",
+            "statement": "Excessive obligations in relation to income",
+            "points_lost": 12.0
+          }
+        ]
+      },
+      {
+        "application_id": 44865,
+        "score": 547.4,
+        "reasons": [
+          {
+            "code": "R06",
+            "statement": "Length of credit history insufficient",
+            "points_lost": 27.6
+          },
+          {
+            "code": "R03",
+            "statement": "Proportion of revolving balances to credit limits too high",
+            "points_lost": 14.5
+          },
+          {
+            "code": "R07",
+            "statement": "Length of employment",
+            "points_lost": 12.9
+          },
+          {
+            "code": "R01",
+            "statement": "Income insufficient for amount of credit requested",
+            "points_lost": 11.1
+          }
+        ]
+      }
+    ]
+  }
+}
