@@ -1,0 +1,1706 @@
+{
+  "run": {
+    "runtime_seconds": 40.41981859999942,
+    "stage_seconds": {
+      "simulate": 8.213725800000248,
+      "features_batch": 5.883349399999133,
+      "train_hgb": 2.7195022999949288,
+      "train_logreg": 0.4915139999939129,
+      "online_replay": 12.536402700003237,
+      "http_replay": 7.320001300002332
+    },
+    "seed": 7
+  },
+  "config": {
+    "simulation": {
+      "seed": 7,
+      "n_customers": 1800,
+      "n_merchants": 1200,
+      "n_periods": 9,
+      "period_days": 30,
+      "warmup_periods": 2,
+      "late_joiner_share": 0.25,
+      "mean_txn_per_day": 0.75,
+      "one_off_device_p": 0.03,
+      "big_ticket_per_month": 0.3,
+      "micro_burst_per_month": 0.25,
+      "trips_per_month": 0.3,
+      "card_testing_per_day": 1.3,
+      "ato_per_day": 2.0,
+      "high_value_per_day": 2.0,
+      "compromised_merchants_per_period": 3,
+      "friendly_fraud_p": 0.012,
+      "shift_period": 8
+    },
+    "costs": {
+      "review_cost_cents": 300,
+      "review_catch_bps": 9000,
+      "review_friction_cents": 100,
+      "decline_margin_bps": 300,
+      "decline_friction_cents": 1000,
+      "max_review_rate": 0.01
+    },
+    "hgb_params": {
+      "learning_rate": 0.06,
+      "max_iter": 300,
+      "max_leaf_nodes": 31,
+      "max_depth": 8,
+      "min_samples_leaf": 40,
+      "l2_regularization": 1.0,
+      "early_stopping": false,
+      "random_state": 0
+    },
+    "rules": [
+      {
+        "name": "velocity",
+        "points": 1,
+        "condition": "3+ transactions in the last hour"
+      },
+      {
+        "name": "card_testing",
+        "points": 2,
+        "condition": "2+ sub-$5 charges in the last hour"
+      },
+      {
+        "name": "impossible_travel",
+        "points": 2,
+        "condition": ">300 km from previous txn at >800 km/h"
+      },
+      {
+        "name": "amount_spike",
+        "points": 1,
+        "condition": "amount z-score > 3 and > $300"
+      },
+      {
+        "name": "new_device_big",
+        "points": 1,
+        "condition": "new device and amount > $200"
+      },
+      {
+        "name": "risky_mcc_new_merchant",
+        "points": 1,
+        "condition": "electronics/jewelry/gift card, new merchant, > $500"
+      },
+      {
+        "name": "shared_device",
+        "points": 2,
+        "condition": "device already used by another customer"
+      },
+      {
+        "name": "away_new_merchant",
+        "points": 1,
+        "condition": ">300 km from usual locations, new merchant, > $150"
+      }
+    ]
+  },
+  "data": {
+    "n_txns": 331302,
+    "n_customers": 1800,
+    "fraud_rate": 0.015318350025052671,
+    "fraud_txns": 5075,
+    "fraud_by_type": {
+      "card_testing": 1813,
+      "ato": 1361,
+      "high_value": 822,
+      "merchant_compromise": 657,
+      "friendly_fraud": 422
+    },
+    "fraud_rate_by_period": [
+      0.017392110222112383,
+      0.015814867762687635,
+      0.014951652475104632,
+      0.016738063491162868,
+      0.01279003033532836,
+      0.013575261675787684,
+      0.014584785358424326,
+      0.015231428993937004,
+      0.016962901109388046
+    ],
+    "split": {
+      "warmup_periods": [
+        0,
+        1
+      ],
+      "train_periods": [
+        2,
+        3,
+        4
+      ],
+      "valid_periods": [
+        5
+      ],
+      "test_periods": [
+        6,
+        7
+      ],
+      "shifted_period": 8,
+      "period_days": 30,
+      "n_train": 106485,
+      "n_valid": 37642,
+      "n_test": 79313,
+      "n_shifted": 41915
+    },
+    "label_delay_days": {
+      "median": 10.934502314814814,
+      "p90": 33.066888888888904
+    },
+    "train_fraud_total": 1576,
+    "train_fraud_labelled_at_cutoff": 1329,
+    "train_fraud_unlabelled_share": 0.1567258883248731
+  },
+  "feature_engine": {
+    "n_features": 19,
+    "features": [
+      "amount_log",
+      "amount_z",
+      "amount_vs_ema",
+      "cnt_7d",
+      "cnt_1h",
+      "cnt_24h",
+      "small_cnt_1h",
+      "amt_sum_24h_log",
+      "secs_since_last_log",
+      "km_from_prev",
+      "speed_kmh",
+      "km_from_centroid",
+      "new_merchant",
+      "new_device",
+      "device_n_customers",
+      "card_present",
+      "hour",
+      "merchant_cb_rate_30d",
+      "mcc"
+    ],
+    "batch_seconds": 5.883349399999133,
+    "throughput_txn_per_sec": 56311.80089356053,
+    "train_serve_skew": {
+      "rows_compared_in_process": 331302,
+      "max_abs_feature_diff_in_process": 0.0,
+      "rows_scored_in_process": 7000,
+      "max_abs_score_diff_in_process": 3.7470027081099033e-16,
+      "rows_compared_http": 1000,
+      "max_abs_feature_diff_http": 0.0
+    }
+  },
+  "models": {
+    "hgb": {
+      "valid": {
+        "n": 37642,
+        "n_fraud": 511,
+        "pr_auc": 0.8617939259941206,
+        "roc_auc": 0.9873437995828067,
+        "recall_at_0.5pct_alerts": {
+          "alert_rate": 0.005,
+          "n_alerts": 189,
+          "recall": 0.3679060665362035,
+          "precision": 0.9947089947089947,
+          "threshold": 0.9410350723174947
+        },
+        "recall_at_2pct_alerts": {
+          "alert_rate": 0.02,
+          "n_alerts": 753,
+          "recall": 0.8532289628180039,
+          "precision": 0.5790172642762285,
+          "threshold": 0.03142119355694312
+        },
+        "brier": 0.0036093455557988925,
+        "brier_base_rate": 0.013390973946221576,
+        "reliability": [
+          {
+            "bin": [
+              0.0,
+              0.002
+            ],
+            "n": 33263,
+            "mean_predicted": 0.0001652840140850617,
+            "observed_rate": 0.0007215224122899317
+          },
+          {
+            "bin": [
+              0.002,
+              0.005
+            ],
+            "n": 2016,
+            "mean_predicted": 0.0031957694931995465,
+            "observed_rate": 0.011904761904761904
+          },
+          {
+            "bin": [
+              0.005,
+              0.01
+            ],
+            "n": 958,
+            "mean_predicted": 0.0069385750710433125,
+            "observed_rate": 0.012526096033402923
+          },
+          {
+            "bin": [
+              0.01,
+              0.02
+            ],
+            "n": 474,
+            "mean_predicted": 0.013724340364479365,
+            "observed_rate": 0.0189873417721519
+          },
+          {
+            "bin": [
+              0.02,
+              0.05
+            ],
+            "n": 282,
+            "mean_predicted": 0.030525595401403132,
+            "observed_rate": 0.031914893617021274
+          },
+          {
+            "bin": [
+              0.05,
+              0.1
+            ],
+            "n": 126,
+            "mean_predicted": 0.06966234638573561,
+            "observed_rate": 0.09523809523809523
+          },
+          {
+            "bin": [
+              0.1,
+              0.2
+            ],
+            "n": 75,
+            "mean_predicted": 0.14259185279379247,
+            "observed_rate": 0.22666666666666666
+          },
+          {
+            "bin": [
+              0.2,
+              0.4
+            ],
+            "n": 44,
+            "mean_predicted": 0.2798911150589008,
+            "observed_rate": 0.4318181818181818
+          },
+          {
+            "bin": [
+              0.4,
+              0.7
+            ],
+            "n": 73,
+            "mean_predicted": 0.571519597700377,
+            "observed_rate": 0.8082191780821918
+          },
+          {
+            "bin": [
+              0.7,
+              1.0
+            ],
+            "n": 331,
+            "mean_predicted": 0.9213332780072405,
+            "observed_rate": 0.9848942598187311
+          }
+        ]
+      },
+      "test": {
+        "n": 79313,
+        "n_fraud": 1183,
+        "pr_auc": 0.8842838019175165,
+        "roc_auc": 0.9908923820422408,
+        "recall_at_0.5pct_alerts": {
+          "alert_rate": 0.005,
+          "n_alerts": 397,
+          "recall": 0.3355874894336433,
+          "precision": 1.0,
+          "threshold": 0.9583052009455627
+        },
+        "recall_at_2pct_alerts": {
+          "alert_rate": 0.02,
+          "n_alerts": 1587,
+          "recall": 0.8706677937447168,
+          "precision": 0.6490233144297417,
+          "threshold": 0.03668425079179574
+        },
+        "brier": 0.0037177253811219247,
+        "brier_base_rate": 0.014693112854879271,
+        "reliability": [
+          {
+            "bin": [
+              0.0,
+              0.002
+            ],
+            "n": 69930,
+            "mean_predicted": 0.0001631702734311815,
+            "observed_rate": 0.0005005005005005005
+          },
+          {
+            "bin": [
+              0.002,
+              0.005
+            ],
+            "n": 4329,
+            "mean_predicted": 0.003234075805237955,
+            "observed_rate": 0.009702009702009701
+          },
+          {
+            "bin": [
+              0.005,
+              0.01
+            ],
+            "n": 1997,
+            "mean_predicted": 0.006978714159530859,
+            "observed_rate": 0.016524787180771158
+          },
+          {
+            "bin": [
+              0.01,
+              0.02
+            ],
+            "n": 1050,
+            "mean_predicted": 0.01393252723936055,
+            "observed_rate": 0.022857142857142857
+          },
+          {
+            "bin": [
+              0.02,
+              0.05
+            ],
+            "n": 552,
+            "mean_predicted": 0.030316252344032766,
+            "observed_rate": 0.04528985507246377
+          },
+          {
+            "bin": [
+              0.05,
+              0.1
+            ],
+            "n": 239,
+            "mean_predicted": 0.06992192669808772,
+            "observed_rate": 0.1297071129707113
+          },
+          {
+            "bin": [
+              0.1,
+              0.2
+            ],
+            "n": 135,
+            "mean_predicted": 0.13988686662235428,
+            "observed_rate": 0.18518518518518517
+          },
+          {
+            "bin": [
+              0.2,
+              0.4
+            ],
+            "n": 108,
+            "mean_predicted": 0.28772866763109456,
+            "observed_rate": 0.5
+          },
+          {
+            "bin": [
+              0.4,
+              0.7
+            ],
+            "n": 169,
+            "mean_predicted": 0.5558271786258124,
+            "observed_rate": 0.757396449704142
+          },
+          {
+            "bin": [
+              0.7,
+              1.0
+            ],
+            "n": 804,
+            "mean_predicted": 0.9242858663051577,
+            "observed_rate": 0.9776119402985075
+          }
+        ]
+      },
+      "shifted": {
+        "n": 41915,
+        "n_fraud": 711,
+        "pr_auc": 0.7625710578618815,
+        "roc_auc": 0.9718729259145024,
+        "recall_at_0.5pct_alerts": {
+          "alert_rate": 0.005,
+          "n_alerts": 210,
+          "recall": 0.2939521800281294,
+          "precision": 0.9952380952380953,
+          "threshold": 0.9108973024594612
+        },
+        "recall_at_2pct_alerts": {
+          "alert_rate": 0.02,
+          "n_alerts": 839,
+          "recall": 0.739803094233474,
+          "precision": 0.6269368295589988,
+          "threshold": 0.10633943329371168
+        },
+        "brier": 0.006727781007473773,
+        "brier_base_rate": 0.016675161095341166,
+        "reliability": [
+          {
+            "bin": [
+              0.0,
+              0.002
+            ],
+            "n": 33013,
+            "mean_predicted": 0.00025330090691745653,
+            "observed_rate": 0.001060188410626117
+          },
+          {
+            "bin": [
+              0.002,
+              0.005
+            ],
+            "n": 4073,
+            "mean_predicted": 0.003243994317063959,
+            "observed_rate": 0.011048367296832801
+          },
+          {
+            "bin": [
+              0.005,
+              0.01
+            ],
+            "n": 2059,
+            "mean_predicted": 0.0069380629150843755,
+            "observed_rate": 0.014084507042253521
+          },
+          {
+            "bin": [
+              0.01,
+              0.02
+            ],
+            "n": 1047,
+            "mean_predicted": 0.013717693653051387,
+            "observed_rate": 0.019102196752626553
+          },
+          {
+            "bin": [
+              0.02,
+              0.05
+            ],
+            "n": 647,
+            "mean_predicted": 0.030598396390605968,
+            "observed_rate": 0.0401854714064915
+          },
+          {
+            "bin": [
+              0.05,
+              0.1
+            ],
+            "n": 220,
+            "mean_predicted": 0.07136586493491291,
+            "observed_rate": 0.12727272727272726
+          },
+          {
+            "bin": [
+              0.1,
+              0.2
+            ],
+            "n": 168,
+            "mean_predicted": 0.138647796003529,
+            "observed_rate": 0.125
+          },
+          {
+            "bin": [
+              0.2,
+              0.4
+            ],
+            "n": 128,
+            "mean_predicted": 0.2904218670310301,
+            "observed_rate": 0.265625
+          },
+          {
+            "bin": [
+              0.4,
+              0.7
+            ],
+            "n": 153,
+            "mean_predicted": 0.5587048016283142,
+            "observed_rate": 0.6143790849673203
+          },
+          {
+            "bin": [
+              0.7,
+              1.0
+            ],
+            "n": 407,
+            "mean_predicted": 0.8945383878824988,
+            "observed_rate": 0.9312039312039312
+          }
+        ]
+      }
+    },
+    "logreg": {
+      "valid": {
+        "n": 37642,
+        "n_fraud": 511,
+        "pr_auc": 0.677183285567716,
+        "roc_auc": 0.9641404492614369,
+        "recall_at_0.5pct_alerts": {
+          "alert_rate": 0.005,
+          "n_alerts": 189,
+          "recall": 0.33268101761252444,
+          "precision": 0.8994708994708994,
+          "threshold": 0.7170178238848023
+        },
+        "recall_at_2pct_alerts": {
+          "alert_rate": 0.02,
+          "n_alerts": 753,
+          "recall": 0.726027397260274,
+          "precision": 0.49269588313413015,
+          "threshold": 0.10589448190553385
+        },
+        "brier": 0.006925068280556642,
+        "brier_base_rate": 0.013390973946221576,
+        "reliability": [
+          {
+            "bin": [
+              0.0,
+              0.002
+            ],
+            "n": 28603,
+            "mean_predicted": 0.0003169221813218981,
+            "observed_rate": 0.0008041114568401916
+          },
+          {
+            "bin": [
+              0.002,
+              0.005
+            ],
+            "n": 3221,
+            "mean_predicted": 0.003230795156263125,
+            "observed_rate": 0.0046569388388699165
+          },
+          {
+            "bin": [
+              0.005,
+              0.01
+            ],
+            "n": 1906,
+            "mean_predicted": 0.007098980222687642,
+            "observed_rate": 0.011017838405036727
+          },
+          {
+            "bin": [
+              0.01,
+              0.02
+            ],
+            "n": 1419,
+            "mean_predicted": 0.01407348429023824,
+            "observed_rate": 0.007751937984496124
+          },
+          {
+            "bin": [
+              0.02,
+              0.05
+            ],
+            "n": 1205,
+            "mean_predicted": 0.03153328002611887,
+            "observed_rate": 0.026556016597510373
+          },
+          {
+            "bin": [
+              0.05,
+              0.1
+            ],
+            "n": 509,
+            "mean_predicted": 0.07057860879723148,
+            "observed_rate": 0.07072691552062868
+          },
+          {
+            "bin": [
+              0.1,
+              0.2
+            ],
+            "n": 288,
+            "mean_predicted": 0.14109570372666658,
+            "observed_rate": 0.1597222222222222
+          },
+          {
+            "bin": [
+              0.2,
+              0.4
+            ],
+            "n": 170,
+            "mean_predicted": 0.28859624901168496,
+            "observed_rate": 0.4176470588235294
+          },
+          {
+            "bin": [
+              0.4,
+              0.7
+            ],
+            "n": 125,
+            "mean_predicted": 0.5418629162241844,
+            "observed_rate": 0.656
+          },
+          {
+            "bin": [
+              0.7,
+              1.0
+            ],
+            "n": 196,
+            "mean_predicted": 0.8840678757373652,
+            "observed_rate": 0.8877551020408163
+          }
+        ]
+      },
+      "test": {
+        "n": 79313,
+        "n_fraud": 1183,
+        "pr_auc": 0.7196867061852382,
+        "roc_auc": 0.9747986942022524,
+        "recall_at_0.5pct_alerts": {
+          "alert_rate": 0.005,
+          "n_alerts": 397,
+          "recall": 0.3144547759932375,
+          "precision": 0.9370277078085643,
+          "threshold": 0.7490590932066984
+        },
+        "recall_at_2pct_alerts": {
+          "alert_rate": 0.02,
+          "n_alerts": 1587,
+          "recall": 0.7506339814032121,
+          "precision": 0.5595463137996219,
+          "threshold": 0.11855307729950122
+        },
+        "brier": 0.00715623317441901,
+        "brier_base_rate": 0.014693112854879271,
+        "reliability": [
+          {
+            "bin": [
+              0.0,
+              0.002
+            ],
+            "n": 60038,
+            "mean_predicted": 0.0003154026154971131,
+            "observed_rate": 0.000682900829474666
+          },
+          {
+            "bin": [
+              0.002,
+              0.005
+            ],
+            "n": 7060,
+            "mean_predicted": 0.003209406881175876,
+            "observed_rate": 0.002974504249291785
+          },
+          {
+            "bin": [
+              0.005,
+              0.01
+            ],
+            "n": 3961,
+            "mean_predicted": 0.007125232786111771,
+            "observed_rate": 0.0045443069931835394
+          },
+          {
+            "bin": [
+              0.01,
+              0.02
+            ],
+            "n": 2917,
+            "mean_predicted": 0.014240908719661612,
+            "observed_rate": 0.012341446691806651
+          },
+          {
+            "bin": [
+              0.02,
+              0.05
+            ],
+            "n": 2562,
+            "mean_predicted": 0.03132008499448741,
+            "observed_rate": 0.03200624512099922
+          },
+          {
+            "bin": [
+              0.05,
+              0.1
+            ],
+            "n": 1011,
+            "mean_predicted": 0.06998695215732448,
+            "observed_rate": 0.0722057368941642
+          },
+          {
+            "bin": [
+              0.1,
+              0.2
+            ],
+            "n": 614,
+            "mean_predicted": 0.14135321859628386,
+            "observed_rate": 0.1986970684039088
+          },
+          {
+            "bin": [
+              0.2,
+              0.4
+            ],
+            "n": 408,
+            "mean_predicted": 0.2831555944303857,
+            "observed_rate": 0.4215686274509804
+          },
+          {
+            "bin": [
+              0.4,
+              0.7
+            ],
+            "n": 299,
+            "mean_predicted": 0.5343136389075677,
+            "observed_rate": 0.6956521739130435
+          },
+          {
+            "bin": [
+              0.7,
+              1.0
+            ],
+            "n": 443,
+            "mean_predicted": 0.8899711739912428,
+            "observed_rate": 0.9255079006772009
+          }
+        ]
+      },
+      "shifted": {
+        "n": 41915,
+        "n_fraud": 711,
+        "pr_auc": 0.48339424834171785,
+        "roc_auc": 0.9475048917867546,
+        "recall_at_0.5pct_alerts": {
+          "alert_rate": 0.005,
+          "n_alerts": 210,
+          "recall": 0.21940928270042195,
+          "precision": 0.7428571428571429,
+          "threshold": 0.5490757636738207
+        },
+        "recall_at_2pct_alerts": {
+          "alert_rate": 0.02,
+          "n_alerts": 839,
+          "recall": 0.5358649789029536,
+          "precision": 0.4541120381406436,
+          "threshold": 0.1641170424842259
+        },
+        "brier": 0.011612356709519576,
+        "brier_base_rate": 0.016675161095341166,
+        "reliability": [
+          {
+            "bin": [
+              0.0,
+              0.002
+            ],
+            "n": 27518,
+            "mean_predicted": 0.0004000579268122431,
+            "observed_rate": 0.0011992150592339559
+          },
+          {
+            "bin": [
+              0.002,
+              0.005
+            ],
+            "n": 4725,
+            "mean_predicted": 0.003238635866077135,
+            "observed_rate": 0.0044444444444444444
+          },
+          {
+            "bin": [
+              0.005,
+              0.01
+            ],
+            "n": 2996,
+            "mean_predicted": 0.007047933501416114,
+            "observed_rate": 0.007009345794392523
+          },
+          {
+            "bin": [
+              0.01,
+              0.02
+            ],
+            "n": 2257,
+            "mean_predicted": 0.014171833039906852,
+            "observed_rate": 0.011962782454585734
+          },
+          {
+            "bin": [
+              0.02,
+              0.05
+            ],
+            "n": 2179,
+            "mean_predicted": 0.03170165225372858,
+            "observed_rate": 0.03258375401560349
+          },
+          {
+            "bin": [
+              0.05,
+              0.1
+            ],
+            "n": 970,
+            "mean_predicted": 0.07032537478119719,
+            "observed_rate": 0.07731958762886598
+          },
+          {
+            "bin": [
+              0.1,
+              0.2
+            ],
+            "n": 578,
+            "mean_predicted": 0.14051413804495114,
+            "observed_rate": 0.21453287197231835
+          },
+          {
+            "bin": [
+              0.2,
+              0.4
+            ],
+            "n": 356,
+            "mean_predicted": 0.2812346243947115,
+            "observed_rate": 0.33146067415730335
+          },
+          {
+            "bin": [
+              0.4,
+              0.7
+            ],
+            "n": 219,
+            "mean_predicted": 0.5365024550299865,
+            "observed_rate": 0.5707762557077626
+          },
+          {
+            "bin": [
+              0.7,
+              1.0
+            ],
+            "n": 117,
+            "mean_predicted": 0.8484417607456433,
+            "observed_rate": 0.8205128205128205
+          }
+        ]
+      }
+    },
+    "rules": {
+      "valid": {
+        "n": 37642,
+        "n_fraud": 511,
+        "pr_auc": 0.19598180320672753,
+        "roc_auc": 0.8111691450922084,
+        "recall_at_0.5pct_alerts": {
+          "alert_rate": 0.005,
+          "n_alerts": 189,
+          "recall": 0.11937377690802348,
+          "precision": 0.32275132275132273,
+          "threshold": 3.0
+        },
+        "recall_at_2pct_alerts": {
+          "alert_rate": 0.02,
+          "n_alerts": 753,
+          "recall": 0.31702544031311153,
+          "precision": 0.2151394422310757,
+          "threshold": 2.0
+        }
+      },
+      "test": {
+        "n": 79313,
+        "n_fraud": 1183,
+        "pr_auc": 0.24381174975254555,
+        "roc_auc": 0.8162620354765597,
+        "recall_at_0.5pct_alerts": {
+          "alert_rate": 0.005,
+          "n_alerts": 397,
+          "recall": 0.14539306846999156,
+          "precision": 0.4332493702770781,
+          "threshold": 3.0
+        },
+        "recall_at_2pct_alerts": {
+          "alert_rate": 0.02,
+          "n_alerts": 1587,
+          "recall": 0.3643279797125951,
+          "precision": 0.2715816005040958,
+          "threshold": 2.0
+        }
+      },
+      "shifted": {
+        "n": 41915,
+        "n_fraud": 711,
+        "pr_auc": 0.10557250158953789,
+        "roc_auc": 0.6907372032892906,
+        "recall_at_0.5pct_alerts": {
+          "alert_rate": 0.005,
+          "n_alerts": 210,
+          "recall": 0.09142053445850915,
+          "precision": 0.30952380952380953,
+          "threshold": 3.0
+        },
+        "recall_at_2pct_alerts": {
+          "alert_rate": 0.02,
+          "n_alerts": 839,
+          "recall": 0.21659634317862167,
+          "precision": 0.1835518474374255,
+          "threshold": 2.0
+        }
+      }
+    }
+  },
+  "recall_by_fraud_type_0.5pct": {
+    "hgb": {
+      "test": {
+        "card_testing": 0.33729216152019004,
+        "ato": 0.6941896024464832,
+        "high_value": 0.016304347826086956,
+        "merchant_compromise": 0.15822784810126583,
+        "friendly_fraud": 0.0
+      },
+      "shifted": {
+        "card_testing": 0.47297297297297297,
+        "ato": 0.3302325581395349,
+        "high_value": 0.13402061855670103,
+        "merchant_compromise": 0.1834862385321101,
+        "friendly_fraud": 0.0
+      }
+    },
+    "logreg": {
+      "test": {
+        "card_testing": 0.2375296912114014,
+        "ato": 0.7003058103975535,
+        "high_value": 0.11956521739130435,
+        "merchant_compromise": 0.13291139240506328,
+        "friendly_fraud": 0.0
+      },
+      "shifted": {
+        "card_testing": 0.33783783783783783,
+        "ato": 0.15348837209302327,
+        "high_value": 0.2268041237113402,
+        "merchant_compromise": 0.23853211009174313,
+        "friendly_fraud": 0.0
+      }
+    },
+    "rules": {
+      "test": {
+        "card_testing": 0.2042755344418052,
+        "ato": 0.1620795107033639,
+        "high_value": 0.14673913043478262,
+        "merchant_compromise": 0.0379746835443038,
+        "friendly_fraud": 0.0
+      },
+      "shifted": {
+        "card_testing": 0.23423423423423423,
+        "ato": 0.0,
+        "high_value": 0.07216494845360824,
+        "merchant_compromise": 0.05504587155963303,
+        "friendly_fraud": 0.0
+      }
+    }
+  },
+  "recall_ceiling_0.5pct": {
+    "test": 0.3355874894336433,
+    "shifted": 0.29535864978902954
+  },
+  "decisioning": {
+    "per_model": {
+      "hgb": {
+        "bands": {
+          "review_at": 0.017875959514759374,
+          "decline_at": 0.058487962229965655
+        },
+        "valid_expected_loss_cents": 2419573,
+        "test": {
+          "expected_loss_cents": 5544794,
+          "approve": 77169,
+          "review": 756,
+          "decline": 1388,
+          "review_rate": 0.009531854803121808,
+          "decline_rate": 0.017500283686154854,
+          "fraud_txns": 1183,
+          "fraud_cents": 81530598,
+          "fraud_cents_declined": 74542663,
+          "fraud_cents_reviewed": 3436575,
+          "fraud_cents_approved": 3551360,
+          "false_declines": 373,
+          "good_reviews": 717,
+          "loss_breakdown_cents": {
+            "fraud_missed": 3894998,
+            "false_decline": 1351296,
+            "review_ops": 298500
+          }
+        },
+        "shifted": {
+          "expected_loss_cents": 3992618,
+          "approve": 40078,
+          "review": 818,
+          "decline": 1019,
+          "review_rate": 0.019515686508409878,
+          "decline_rate": 0.024311105809376118,
+          "fraud_txns": 711,
+          "fraud_cents": 17825183,
+          "fraud_cents_declined": 14818265,
+          "fraud_cents_reviewed": 932059,
+          "fraud_cents_approved": 2074859,
+          "false_declines": 471,
+          "good_reviews": 780,
+          "loss_breakdown_cents": {
+            "fraud_missed": 2168050,
+            "false_decline": 1501168,
+            "review_ops": 323400
+          }
+        }
+      },
+      "logreg": {
+        "bands": {
+          "review_at": 0.06226835427374612,
+          "decline_at": 0.10597775983328336
+        },
+        "valid_expected_loss_cents": 3732680,
+        "test": {
+          "expected_loss_cents": 8206996,
+          "approve": 76908,
+          "review": 709,
+          "decline": 1696,
+          "review_rate": 0.008939265946313972,
+          "decline_rate": 0.021383631939278554,
+          "fraud_txns": 1183,
+          "fraud_cents": 81530598,
+          "fraud_cents_declined": 74051119,
+          "fraud_cents_reviewed": 1991548,
+          "fraud_cents_approved": 5487931,
+          "false_declines": 790,
+          "good_reviews": 646,
+          "loss_breakdown_cents": {
+            "fraud_missed": 5687057,
+            "false_decline": 2242639,
+            "review_ops": 277300
+          }
+        },
+        "shifted": {
+          "expected_loss_cents": 5950687,
+          "approve": 40031,
+          "review": 677,
+          "decline": 1207,
+          "review_rate": 0.01615173565549326,
+          "decline_rate": 0.028796373613264942,
+          "fraud_txns": 711,
+          "fraud_cents": 17825183,
+          "fraud_cents_declined": 13624693,
+          "fraud_cents_reviewed": 1078835,
+          "fraud_cents_approved": 3121655,
+          "false_declines": 753,
+          "good_reviews": 612,
+          "loss_breakdown_cents": {
+            "fraud_missed": 3229509,
+            "false_decline": 2456878,
+            "review_ops": 264300
+          }
+        }
+      },
+      "rules": {
+        "bands": {
+          "review_at": 1.0,
+          "decline_at": 1.0
+        },
+        "valid_expected_loss_cents": 6190569,
+        "test": {
+          "expected_loss_cents": 15576777,
+          "approve": 76000,
+          "review": 0,
+          "decline": 3313,
+          "review_rate": 0.0,
+          "decline_rate": 0.041771210268177976,
+          "fraud_txns": 1183,
+          "fraud_cents": 81530598,
+          "fraud_cents_declined": 73402239,
+          "fraud_cents_reviewed": 0,
+          "fraud_cents_approved": 8128359,
+          "false_declines": 2531,
+          "good_reviews": 0,
+          "loss_breakdown_cents": {
+            "fraud_missed": 8128359,
+            "false_decline": 7448418,
+            "review_ops": 0
+          }
+        },
+        "shifted": {
+          "expected_loss_cents": 12968422,
+          "approve": 39648,
+          "review": 0,
+          "decline": 2267,
+          "review_rate": 0.0,
+          "decline_rate": 0.0540856495288083,
+          "fraud_txns": 711,
+          "fraud_cents": 17825183,
+          "fraud_cents_declined": 11590560,
+          "fraud_cents_reviewed": 0,
+          "fraud_cents_approved": 6234623,
+          "false_declines": 1965,
+          "good_reviews": 0,
+          "loss_breakdown_cents": {
+            "fraud_missed": 6234623,
+            "false_decline": 6733799,
+            "review_ops": 0
+          }
+        }
+      }
+    },
+    "savings": {
+      "approve_all_loss_cents": 81530598,
+      "hgb_vs_rules_cents": 10031983,
+      "hgb_vs_rules_pct": 0.6440345778847576,
+      "hgb_vs_rules_cents_per_month": 5015991,
+      "hgb_vs_logreg_cents": 2662202,
+      "hgb_vs_approve_all_cents": 75985804,
+      "test_months": 2
+    }
+  },
+  "drift": {
+    "thresholds": {
+      "warn": 0.1,
+      "alert": 0.25
+    },
+    "train_vs_test": [
+      {
+        "feature": "km_from_centroid",
+        "psi": 0.0010949675029833688,
+        "status": "ok"
+      },
+      {
+        "feature": "cnt_7d",
+        "psi": 0.0005777237652026806,
+        "status": "ok"
+      },
+      {
+        "feature": "device_n_customers",
+        "psi": 0.0004326179809684354,
+        "status": "ok"
+      },
+      {
+        "feature": "amount_vs_ema",
+        "psi": 0.00043231706232864316,
+        "status": "ok"
+      },
+      {
+        "feature": "merchant_cb_rate_30d",
+        "psi": 0.00041471661397766556,
+        "status": "ok"
+      },
+      {
+        "feature": "secs_since_last_log",
+        "psi": 0.00033210565917752373,
+        "status": "ok"
+      },
+      {
+        "feature": "speed_kmh",
+        "psi": 0.0002620225181349368,
+        "status": "ok"
+      },
+      {
+        "feature": "new_merchant",
+        "psi": 0.0002556383922486661,
+        "status": "ok"
+      },
+      {
+        "feature": "hour",
+        "psi": 0.0002495895235471316,
+        "status": "ok"
+      },
+      {
+        "feature": "amt_sum_24h_log",
+        "psi": 0.0002230870997103652,
+        "status": "ok"
+      },
+      {
+        "feature": "amount_z",
+        "psi": 0.00019488811957379368,
+        "status": "ok"
+      },
+      {
+        "feature": "cnt_24h",
+        "psi": 0.00016497166409257697,
+        "status": "ok"
+      },
+      {
+        "feature": "amount_log",
+        "psi": 0.00015160235788263775,
+        "status": "ok"
+      },
+      {
+        "feature": "km_from_prev",
+        "psi": 0.00010064235150893322,
+        "status": "ok"
+      },
+      {
+        "feature": "cnt_1h",
+        "psi": 6.560416785875293e-05,
+        "status": "ok"
+      },
+      {
+        "feature": "small_cnt_1h",
+        "psi": 5.606033025112223e-05,
+        "status": "ok"
+      },
+      {
+        "feature": "mcc",
+        "psi": 2.531766934207958e-05,
+        "status": "ok"
+      },
+      {
+        "feature": "card_present",
+        "psi": 1.610016302215716e-05,
+        "status": "ok"
+      },
+      {
+        "feature": "new_device",
+        "psi": 9.084807421478878e-07,
+        "status": "ok"
+      }
+    ],
+    "train_vs_shifted": [
+      {
+        "feature": "amount_log",
+        "psi": 0.14005766946229636,
+        "status": "warn"
+      },
+      {
+        "feature": "amount_z",
+        "psi": 0.13859310864276936,
+        "status": "warn"
+      },
+      {
+        "feature": "mcc",
+        "psi": 0.07603753970597373,
+        "status": "ok"
+      },
+      {
+        "feature": "amt_sum_24h_log",
+        "psi": 0.07579936444927793,
+        "status": "ok"
+      },
+      {
+        "feature": "merchant_cb_rate_30d",
+        "psi": 0.023574861808323147,
+        "status": "ok"
+      },
+      {
+        "feature": "amount_vs_ema",
+        "psi": 0.019797857342466266,
+        "status": "ok"
+      },
+      {
+        "feature": "card_present",
+        "psi": 0.00395860604240876,
+        "status": "ok"
+      },
+      {
+        "feature": "new_merchant",
+        "psi": 0.0017693541936873607,
+        "status": "ok"
+      },
+      {
+        "feature": "km_from_centroid",
+        "psi": 0.0015349095905749879,
+        "status": "ok"
+      },
+      {
+        "feature": "km_from_prev",
+        "psi": 0.0010639527837687482,
+        "status": "ok"
+      },
+      {
+        "feature": "cnt_7d",
+        "psi": 0.0005901454934272948,
+        "status": "ok"
+      },
+      {
+        "feature": "speed_kmh",
+        "psi": 0.0005549179710488473,
+        "status": "ok"
+      },
+      {
+        "feature": "small_cnt_1h",
+        "psi": 0.0002923952762016445,
+        "status": "ok"
+      },
+      {
+        "feature": "hour",
+        "psi": 0.00025145238316643856,
+        "status": "ok"
+      },
+      {
+        "feature": "cnt_1h",
+        "psi": 0.0001712592954432959,
+        "status": "ok"
+      },
+      {
+        "feature": "secs_since_last_log",
+        "psi": 0.00015723313151175345,
+        "status": "ok"
+      },
+      {
+        "feature": "device_n_customers",
+        "psi": 0.00012192542364081608,
+        "status": "ok"
+      },
+      {
+        "feature": "new_device",
+        "psi": 3.0185368801405983e-05,
+        "status": "ok"
+      },
+      {
+        "feature": "cnt_24h",
+        "psi": 1.5303987587690997e-05,
+        "status": "ok"
+      }
+    ],
+    "fraud_only_train_vs_test": [
+      {
+        "feature": "merchant_cb_rate_30d",
+        "psi": 0.06422421755305674,
+        "status": "ok"
+      },
+      {
+        "feature": "amount_z",
+        "psi": 0.04262997149451195,
+        "status": "ok"
+      },
+      {
+        "feature": "km_from_centroid",
+        "psi": 0.033280089504228755,
+        "status": "ok"
+      },
+      {
+        "feature": "amt_sum_24h_log",
+        "psi": 0.030843023908771076,
+        "status": "ok"
+      },
+      {
+        "feature": "device_n_customers",
+        "psi": 0.030017843467726263,
+        "status": "ok"
+      },
+      {
+        "feature": "hour",
+        "psi": 0.026795087780040264,
+        "status": "ok"
+      },
+      {
+        "feature": "cnt_7d",
+        "psi": 0.018659758487424998,
+        "status": "ok"
+      },
+      {
+        "feature": "km_from_prev",
+        "psi": 0.01732012869387227,
+        "status": "ok"
+      },
+      {
+        "feature": "amount_log",
+        "psi": 0.017053461308189428,
+        "status": "ok"
+      },
+      {
+        "feature": "amount_vs_ema",
+        "psi": 0.016962132939099546,
+        "status": "ok"
+      },
+      {
+        "feature": "speed_kmh",
+        "psi": 0.014252939800570283,
+        "status": "ok"
+      },
+      {
+        "feature": "secs_since_last_log",
+        "psi": 0.012638303929802986,
+        "status": "ok"
+      },
+      {
+        "feature": "mcc",
+        "psi": 0.011066406535203513,
+        "status": "ok"
+      },
+      {
+        "feature": "cnt_1h",
+        "psi": 0.007515874099224211,
+        "status": "ok"
+      },
+      {
+        "feature": "cnt_24h",
+        "psi": 0.007306584350127879,
+        "status": "ok"
+      },
+      {
+        "feature": "small_cnt_1h",
+        "psi": 0.00559589529330062,
+        "status": "ok"
+      },
+      {
+        "feature": "card_present",
+        "psi": 0.0032714729733831337,
+        "status": "ok"
+      },
+      {
+        "feature": "new_device",
+        "psi": 0.001263752387830211,
+        "status": "ok"
+      },
+      {
+        "feature": "new_merchant",
+        "psi": 0.0002669834749635549,
+        "status": "ok"
+      }
+    ],
+    "fraud_only_train_vs_shifted": [
+      {
+        "feature": "amount_log",
+        "psi": 0.3513545306713278,
+        "status": "ALERT"
+      },
+      {
+        "feature": "amount_vs_ema",
+        "psi": 0.3353341133770864,
+        "status": "ALERT"
+      },
+      {
+        "feature": "amount_z",
+        "psi": 0.3137579559472073,
+        "status": "ALERT"
+      },
+      {
+        "feature": "amt_sum_24h_log",
+        "psi": 0.19520079893526962,
+        "status": "warn"
+      },
+      {
+        "feature": "km_from_centroid",
+        "psi": 0.12392084004333209,
+        "status": "warn"
+      },
+      {
+        "feature": "merchant_cb_rate_30d",
+        "psi": 0.07788119422314606,
+        "status": "ok"
+      },
+      {
+        "feature": "km_from_prev",
+        "psi": 0.05887398278394402,
+        "status": "ok"
+      },
+      {
+        "feature": "hour",
+        "psi": 0.055778782954390566,
+        "status": "ok"
+      },
+      {
+        "feature": "speed_kmh",
+        "psi": 0.04615936475420927,
+        "status": "ok"
+      },
+      {
+        "feature": "mcc",
+        "psi": 0.02785611543477355,
+        "status": "ok"
+      },
+      {
+        "feature": "secs_since_last_log",
+        "psi": 0.022208523501637656,
+        "status": "ok"
+      },
+      {
+        "feature": "device_n_customers",
+        "psi": 0.015658669520649794,
+        "status": "ok"
+      },
+      {
+        "feature": "cnt_7d",
+        "psi": 0.015071792090116607,
+        "status": "ok"
+      },
+      {
+        "feature": "small_cnt_1h",
+        "psi": 0.012741918836120986,
+        "status": "ok"
+      },
+      {
+        "feature": "cnt_1h",
+        "psi": 0.008446775279834846,
+        "status": "ok"
+      },
+      {
+        "feature": "cnt_24h",
+        "psi": 0.005114806749610472,
+        "status": "ok"
+      },
+      {
+        "feature": "card_present",
+        "psi": 0.003112687970347401,
+        "status": "ok"
+      },
+      {
+        "feature": "new_merchant",
+        "psi": 0.0015805320506674832,
+        "status": "ok"
+      },
+      {
+        "feature": "new_device",
+        "psi": 0.00027063843630167016,
+        "status": "ok"
+      }
+    ],
+    "score_psi_train_vs_test": 0.0001739217147657545,
+    "score_psi_train_vs_shifted": 0.11796894129686289,
+    "score_status_shifted": "warn",
+    "alerts_train_vs_test": [],
+    "warns_train_vs_test": [],
+    "alerts_train_vs_shifted": [],
+    "warns_train_vs_shifted": [
+      "amount_log",
+      "amount_z"
+    ],
+    "alerts_fraud_only_train_vs_test": [],
+    "warns_fraud_only_train_vs_test": [],
+    "alerts_fraud_only_train_vs_shifted": [
+      "amount_log",
+      "amount_vs_ema",
+      "amount_z"
+    ],
+    "warns_fraud_only_train_vs_shifted": [
+      "amt_sum_24h_log",
+      "km_from_centroid"
+    ]
+  },
+  "latency": {
+    "in_process_production": {
+      "n": 5000,
+      "p50_ms": 0.47675,
+      "p95_ms": 0.9656350000000009,
+      "p99_ms": 2.1781010000000003,
+      "mean_ms": 0.57959532
+    },
+    "in_process_reasons_always": {
+      "n": 2000,
+      "p50_ms": 2.0002500000000003,
+      "p95_ms": 2.81581,
+      "p99_ms": 3.292308,
+      "mean_ms": 2.09232935
+    },
+    "http_testclient": {
+      "n": 1000,
+      "p50_ms": 6.8543,
+      "p95_ms": 8.573744999999999,
+      "p99_ms": 9.783418999999999,
+      "mean_ms": 7.0675707999999995
+    },
+    "http_decisions": {
+      "approve": 946,
+      "review": 27,
+      "decline": 27
+    }
+  },
+  "model_version": "hgb-31169a0379",
+  "example_response": {
+    "txn_id": 290244,
+    "score": 0.9711993016557275,
+    "decision": "decline",
+    "reasons": [
+      {
+        "code": "A01",
+        "feature": "amount_log",
+        "description": "Transaction amount: high",
+        "value": 5.84035091743822,
+        "contribution_logit": 4.812
+      },
+      {
+        "code": "M03",
+        "feature": "mcc",
+        "description": "Merchant category: online_retail (5999)",
+        "value": 11.0,
+        "contribution_logit": 4.6633
+      },
+      {
+        "code": "V05",
+        "feature": "secs_since_last_log",
+        "description": "Time since previous transaction: low",
+        "value": 7.814803429489359,
+        "contribution_logit": 1.9983
+      }
+    ],
+    "model_version": "hgb-31169a0379",
+    "latency_ms": 2.6483999972697347
+  },
+  "series": {
+    "name": "Expected loss (USD) vs decline threshold, validation month, HGB",
+    "x": [
+      0.000163,
+      0.000293,
+      0.000533,
+      0.000945,
+      0.001532,
+      0.00229,
+      0.003141,
+      0.004234,
+      0.005517,
+      0.007161,
+      0.009524,
+      0.01289,
+      0.018588,
+      0.02881,
+      0.052917,
+      0.109219,
+      0.282158,
+      0.662982,
+      0.824996,
+      0.899407,
+      0.941541,
+      0.95901,
+      0.97098,
+      0.978542,
+      0.983217,
+      0.986374,
+      0.987364,
+      0.989216,
+      0.990109,
+      0.990939,
+      0.992451,
+      0.993121,
+      0.994052,
+      0.994486,
+      0.994987,
+      0.995669,
+      0.9962,
+      0.996482,
+      0.996697,
+      0.997032
+    ],
+    "y": [
+      157167.12,
+      131427.89,
+      110147.24,
+      91684.5,
+      77005.47,
+      64049.96,
+      53828.25,
+      48788.38,
+      41986.88,
+      39250.26,
+      35430.63,
+      32325.86,
+      32305.69,
+      36107.72,
+      34458.82,
+      43762.7,
+      69978.24,
+      110136.92,
+      132608.48,
+      157742.24,
+      189963.53,
+      219972.45,
+      238339.43,
+      253087.87,
+      263017.63,
+      283196.36,
+      291467.75,
+      296616.35,
+      305895.12,
+      312564.39,
+      320006.48,
+      325895.63,
+      330539.03,
+      332084.2,
+      333247.2,
+      335344.63,
+      337865.67,
+      338549.24,
+      338895.84,
+      338897.95
+    ]
+  }
+}
