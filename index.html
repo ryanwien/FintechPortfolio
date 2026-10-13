@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ryan Wien — Fintech Portfolio</title>
+<meta name="description" content="Five production-style fintech systems: double-entry ledger, real-time fraud scoring, credit underwriting with model-risk docs, an exchange matching engine, and AML monitoring. Every number is produced by code in the repo.">
+<meta name="author" content="Ryan Wien">
+<meta property="og:title" content="Ryan Wien — Fintech Portfolio">
+<meta property="og:description" content="Ledger · Fraud · Credit · Exchange · AML. Five systems, measured.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#0c0d0c">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23c6f36b'/><path d='M8 21l5-8 4 5 7-10' stroke='%230c0d0c' stroke-width='3.2' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<div class="shell">
+  <aside class="side" id="side">
+    <a class="logo" href="#/" aria-label="Overview">
+      <span class="logo__mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M8 21l5-8 4 5 7-10" stroke="currentColor" stroke-width="3.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+      <span class="logo__text">Wien<span>.systems</span></span>
+    </a>
+
+    <nav class="nav" aria-label="Sections">
+      <p class="nav__label">Overview</p>
+      <a class="nav__item" href="#/" data-route="/">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="11" y="3" width="6" height="6" rx="1.5"/><rect x="3" y="11" width="6" height="6" rx="1.5"/><rect x="11" y="11" width="6" height="6" rx="1.5"/></svg>
+        Dashboard
+      </a>
+      <p class="nav__label">Systems</p>
+      <div id="nav-projects"></div>
+      <p class="nav__label">More</p>
+      <a class="nav__item" href="#/coverage" data-route="/coverage">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10l4 4 8-8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        JD coverage
+      </a>
+      <a class="nav__item" href="https://github.com/ryanwien/FintechPortfolio" rel="noopener">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2a8 8 0 0 0-2.5 15.6c.4 0 .5-.2.5-.4v-1.5c-2.2.5-2.7-1-2.7-1-.4-.9-.9-1.2-.9-1.2-.7-.5.1-.5.1-.5.8.1 1.2.8 1.2.8.7 1.3 1.9.9 2.4.7 0-.5.3-.9.5-1.1-1.8-.2-3.7-.9-3.7-4a3 3 0 0 1 .8-2.1 2.8 2.8 0 0 1 .1-2.1s.7-.2 2.2.8a7.6 7.6 0 0 1 4 0c1.5-1 2.2-.8 2.2-.8.4.7.5 1.5.1 2.1a3 3 0 0 1 .8 2.1c0 3.1-1.9 3.8-3.7 4 .3.3.6.8.6 1.5v2.3c0 .2.1.5.6.4A8 8 0 0 0 10 2z"/></svg>
+        Source code
+      </a>
+    </nav>
+
+    <div class="side__foot">
+      <button class="theme" id="theme" type="button" aria-label="Toggle light and dark theme">
+        <span class="theme__track"><span class="theme__knob"></span></span>
+        <span class="theme__txt">Dark mode</span>
+      </button>
+      <a class="me" href="https://www.linkedin.com/in/ryanwien3d">
+        <span class="me__avatar" aria-hidden="true">RW</span>
+        <span class="me__txt"><b>Ryan Wien</b><small>Software engineer · open to fintech roles</small></span>
+      </a>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="top">
+      <button class="burger" id="burger" type="button" aria-label="Open navigation" aria-controls="side" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+      <h1 class="top__title" id="top-title">Dashboard</h1>
+      <label class="search">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13 13l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <input id="search" type="search" placeholder="Search systems, metrics, skills…" autocomplete="off">
+      </label>
+      <span class="status" aria-label="CI status"><span class="status__dot"></span>CI green</span>
+      <a class="btn btn--accent" href="https://www.linkedin.com/in/ryanwien3d">Get in touch</a>
+    </header>
+
+    <main class="view" id="main" tabindex="-1"></main>
+  </div>
+</div>
+<div class="scrim" id="scrim" hidden></div>
+
+<template id="t-overview">
+  <section class="row row--hero">
+    <article class="card card--hero">
+      <div class="card__head">
+        <div>
+          <p class="card__label">Portfolio · five fintech systems</p>
+          <p class="big"><span data-big></span><span class="pill pill--up" data-big-pill></span></p>
+          <p class="sub">tests, gating every push, across <span data-loc></span> lines of Python, <span data-count></span> systems, one command each. Every number on this page is written by the code it describes.</p>
+        </div>
+        <div class="seg" role="tablist" aria-label="Chart series" data-seg></div>
+      </div>
+      <div class="chart" data-chart></div>
+    </article>
+    <article class="card card--alloc">
+      <p class="card__label">Allocation <span class="dim">by lines of code</span></p>
+      <div class="alloc" data-alloc></div>
+      <ul class="legend" data-legend></ul>
+      <p class="card__label mt">Coverage</p>
+      <ul class="kv" data-kv></ul>
+    </article>
+  </section>
+
+  <section class="row row--kpis" data-kpis></section>
+
+  <section class="row row--split">
+    <article class="card">
+      <div class="card__head"><p class="card__label">Systems</p><span class="dim" data-sys-count></span></div>
+      <div class="tbl-wrap"><table class="tbl tbl--systems" data-table>
+        <thead><tr><th>System</th><th class="hide-sm">Lane</th><th>Headline</th><th class="r">Tests</th><th class="r hide-sm">Trend</th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </article>
+    <article class="card">
+      <div class="card__head"><p class="card__label">Recent activity</p><a class="dim" href="https://github.com/ryanwien/FintechPortfolio/commits/main">git log →</a></div>
+      <ul class="activity" data-activity></ul>
+    </article>
+  </section>
+</template>
+
+<template id="t-project">
+  <section class="row row--hero">
+    <article class="card card--hero">
+      <div class="card__head">
+        <div>
+          <p class="card__label"><span class="lane" data-lane></span></p>
+          <p class="big"><span data-big></span><small data-big-unit></small><span class="pill" data-big-pill></span></p>
+          <p class="sub" data-big-note></p>
+        </div>
+        <div class="seg" data-seg></div>
+      </div>
+      <div class="chart" data-chart></div>
+    </article>
+    <article class="card card--about">
+      <p class="card__label">About</p>
+      <h2 class="h2" data-title></h2>
+      <p class="sub" data-tagline></p>
+      <div class="chips" data-stack></div>
+      <div class="card__actions">
+        <a class="btn btn--accent" data-src href="#">View source</a>
+        <a class="btn" data-report-link href="#">REPORT.md</a>
+      </div>
+      <ul class="kv mt" data-facts></ul>
+    </article>
+  </section>
+
+  <section class="row row--kpis" data-kpis></section>
+
+  <section class="row row--split">
+    <article class="card">
+      <p class="card__label">What it proves</p>
+      <ul class="list list--check" data-highlights></ul>
+    </article>
+    <article class="card">
+      <p class="card__label">Known limitations</p>
+      <ul class="list list--warn" data-limits></ul>
+    </article>
+  </section>
+
+  <section class="row">
+    <article class="card">
+      <div class="card__head"><p class="card__label">Run report</p><span class="dim">generated by the run script</span></div>
+      <div class="report" data-report></div>
+    </article>
+  </section>
+</template>
+
+<template id="t-coverage">
+  <section class="row">
+    <article class="card">
+      <div class="card__head">
+        <div><p class="card__label">Job-description coverage</p><p class="sub">Requirements that recur in fintech job postings, and which system demonstrates each.</p></div>
+      </div>
+      <div class="tbl-wrap"><table class="tbl tbl--matrix" data-matrix></table></div>
+    </article>
+  </section>
+</template>
+
+<script src="assets/data.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
