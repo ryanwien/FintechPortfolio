@@ -1,0 +1,47 @@
+# One lint standard for every project in the repo.
+line-length = 100
+target-version = "py311"
+
+[lint]
+select = [
+  "E", "W",   # pycodestyle
+  "F",        # pyflakes
+  "I",        # isort
+  "B",        # bugbear
+  "UP",       # pyupgrade
+  "N",        # pep8-naming
+  "SIM",      # simplify
+  "RUF",      # ruff-specific
+  "C4",       # comprehensions
+  "PIE",      # misc lint
+  "PT",       # pytest style
+  "RET",      # return hygiene
+  "ARG",      # unused arguments
+  "PTH",      # pathlib over os.path
+  "T20",      # no stray print() in library code
+  "S",        # bandit security checks
+  "PLE", "PLW",
+  "ANN001", "ANN201", "ANN202",  # type hints on function args and returns
+]
+ignore = [
+  "RUF001", "RUF002", "RUF003",  # unicode µ, ×, → are intentional in reports
+  "S101",                        # assert is fine in tests and invariants
+  "S311",                        # random is for seeded simulation, not crypto
+  "S608",                        # SQL built from constants, values always bound
+]
+
+[lint.per-file-ignores]
+"*/tests/**" = ["ANN", "ARG", "S", "T20", "PLW"]
+"*/src/*/run.py" = ["T20"]
+"*/src/*/bench.py" = ["T20"]
+"tools/**" = ["T20"]
+
+[lint.pep8-naming]
+# Scorecard/ML math conventionally uses X, y, X_train.
+ignore-names = ["X", "X_*", "Xs", "N", "W", "H", "L", "R", "T", "B"]
+
+[format]
+quote-style = "double"
+
+[lint.isort]
+known-first-party = ["ledger", "fraud", "credit", "exchange", "aml"]
