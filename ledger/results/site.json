@@ -1,0 +1,68 @@
+{
+  "slug": "ledger",
+  "title": "Double-entry ledger & payments API",
+  "tagline": "An append-only, double-entry ledger with idempotent payments, authorization holds and automated bank reconciliation.",
+  "lane": "Payments infrastructure",
+  "stack": [
+    "Python",
+    "FastAPI",
+    "SQLite",
+    "Hypothesis",
+    "pytest"
+  ],
+  "metrics": [
+    {
+      "label": "p99 transfer latency",
+      "value": "14.752",
+      "unit": "ms",
+      "note": "single writer, fsync on every commit (synchronous=FULL)"
+    },
+    {
+      "label": "transfer throughput",
+      "value": "556",
+      "unit": "transfers/s",
+      "note": "1112 postings/s at 1 thread(s)"
+    },
+    {
+      "label": "recon break classification",
+      "value": "100%",
+      "unit": "precision",
+      "note": "138/138 injected breaks, recall 100%"
+    },
+    {
+      "label": "unexplained recon difference",
+      "value": "0",
+      "unit": "cents",
+      "note": "every cent of bank vs ledger difference attributed to a break"
+    }
+  ],
+  "highlights": [
+    "Append-only journal enforced by SQLite triggers; corrections are reversing entries",
+    "Idempotency keys stored in the same transaction as the effect: exactly-once under retries",
+    "Authorization holds: available vs pending balance, overdraft rule checked atomically",
+    "Hypothesis state machine: random operation sequences never unbalance the books",
+    "Reconciliation classifies missing, duplicate, amount and timing breaks against a bank file"
+  ],
+  "limitations": [
+    "SQLite has one writer: throughput is flat with concurrency; Postgres row locks would scale",
+    "Bank statement is synthetic; its generator and the matcher were written together",
+    "Single-currency transfers; FX is only possible as hand-built multi-leg entries"
+  ],
+  "series": {
+    "name": "transfers/s by concurrent threads (synchronous=FULL)",
+    "x": [
+      1,
+      2,
+      4,
+      8,
+      16
+    ],
+    "y": [
+      556.2,
+      428.2,
+      426.1,
+      420.2,
+      425.3
+    ]
+  }
+}

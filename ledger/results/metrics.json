@@ -1,0 +1,417 @@
+{
+  "environment": {
+    "generated_at": "2026-10-13",
+    "python": "3.14.0",
+    "sqlite": "3.50.4",
+    "platform": "Windows 11 AMD64",
+    "quick": false
+  },
+  "config": {
+    "wallets": 200,
+    "transfers_per_level": 4000,
+    "seed": 20261013,
+    "storage": "SQLite WAL, synchronous=FULL, BEGIN IMMEDIATE per operation"
+  },
+  "headline": {
+    "transfer_p50_ms": 1.49,
+    "transfer_p95_ms": 2.327,
+    "transfer_p99_ms": 14.752,
+    "transfers_per_s_single_thread": 556.2,
+    "postings_per_s_single_thread": 1112.5,
+    "max_transfers_per_s": 556.2,
+    "recon_precision": 1.0,
+    "recon_recall": 1.0,
+    "recon_unexplained_difference": 0,
+    "recon_stress_precision": 0.5394,
+    "recon_stress_recall": 0.7008,
+    "all_invariants_ok": true
+  },
+  "transfers": {
+    "by_concurrency": [
+      {
+        "threads": 1,
+        "transfers": 4000,
+        "wall_s": 7.191,
+        "transfers_per_s": 556.2,
+        "postings_per_s": 1112.5,
+        "latency_ms": {
+          "p50": 1.49,
+          "p95": 2.327,
+          "p99": 14.752,
+          "max": 22.484,
+          "mean": 1.782
+        },
+        "invariants_ok": true,
+        "money_conserved": true
+      },
+      {
+        "threads": 2,
+        "transfers": 4000,
+        "wall_s": 9.341,
+        "transfers_per_s": 428.2,
+        "postings_per_s": 856.4,
+        "latency_ms": {
+          "p50": 3.981,
+          "p95": 8.389,
+          "p99": 19.163,
+          "max": 26.281,
+          "mean": 4.65
+        },
+        "invariants_ok": true,
+        "money_conserved": true
+      },
+      {
+        "threads": 4,
+        "transfers": 4000,
+        "wall_s": 9.387,
+        "transfers_per_s": 426.1,
+        "postings_per_s": 852.2,
+        "latency_ms": {
+          "p50": 8.045,
+          "p95": 20.566,
+          "p99": 25.858,
+          "max": 42.069,
+          "mean": 9.363
+        },
+        "invariants_ok": true,
+        "money_conserved": true
+      },
+      {
+        "threads": 8,
+        "transfers": 4000,
+        "wall_s": 9.519,
+        "transfers_per_s": 420.2,
+        "postings_per_s": 840.4,
+        "latency_ms": {
+          "p50": 16.877,
+          "p95": 31.592,
+          "p99": 36.322,
+          "max": 40.494,
+          "mean": 19.0
+        },
+        "invariants_ok": true,
+        "money_conserved": true
+      },
+      {
+        "threads": 16,
+        "transfers": 4000,
+        "wall_s": 9.405,
+        "transfers_per_s": 425.3,
+        "postings_per_s": 850.6,
+        "latency_ms": {
+          "p50": 34.5,
+          "p95": 50.377,
+          "p99": 54.722,
+          "max": 61.916,
+          "mean": 37.535
+        },
+        "invariants_ok": true,
+        "money_conserved": true
+      }
+    ],
+    "synchronous_normal": {
+      "threads": 1,
+      "transfers": 4000,
+      "wall_s": 5.024,
+      "transfers_per_s": 796.1,
+      "postings_per_s": 1592.2,
+      "latency_ms": {
+        "p50": 0.833,
+        "p95": 1.641,
+        "p99": 15.962,
+        "max": 27.19,
+        "mean": 1.241
+      },
+      "invariants_ok": true,
+      "money_conserved": true
+    }
+  },
+  "lifecycle": {
+    "authorize_ms_p50": 1.094,
+    "authorize_ms_p99": 2.245,
+    "capture_ms_p50": 1.387,
+    "capture_ms_p99": 6.088,
+    "first_write_ms_p50": 1.667,
+    "replay_ms_p50": 0.073,
+    "replay_ms_p99": 0.239,
+    "replays_served_from_store": 1000,
+    "replays_attempted": 1000,
+    "holds_accepted_before_overdraft": 7,
+    "holds_rejected_insufficient_funds": 3,
+    "invariants_ok": true
+  },
+  "reconciliation": {
+    "standard": {
+      "period": "2026-09-01..2026-09-30",
+      "scenario": {
+        "deposits": 1015,
+        "payouts_posted": 618,
+        "payouts_failed": 35,
+        "internal_fees": 128,
+        "build_s": 1.432
+      },
+      "summary": {
+        "ledger_items": 1633,
+        "bank_lines": 1632,
+        "counts": {
+          "matched": 1396,
+          "matched_fuzzy": 131,
+          "timing": 49,
+          "amount_mismatch": 24,
+          "duplicate": 16,
+          "missing_in_bank": 33,
+          "missing_in_ledger": 16
+        },
+        "breaks": 138,
+        "auto_match_rate": 0.9351,
+        "ledger_total": 157806600,
+        "bank_total": 161539448,
+        "difference": 3732848,
+        "explained_by_breaks": 3732848,
+        "unexplained_difference": 0
+      },
+      "scoring": {
+        "injected_breaks": 138,
+        "reported_breaks": 138,
+        "correctly_classified": 138,
+        "precision": 1.0,
+        "recall": 1.0,
+        "per_kind": {
+          "timing": {
+            "injected": 49,
+            "detected": 49,
+            "true_positive": 49,
+            "precision": 1.0,
+            "recall": 1.0
+          },
+          "amount_mismatch": {
+            "injected": 24,
+            "detected": 24,
+            "true_positive": 24,
+            "precision": 1.0,
+            "recall": 1.0
+          },
+          "duplicate": {
+            "injected": 16,
+            "detected": 16,
+            "true_positive": 16,
+            "precision": 1.0,
+            "recall": 1.0
+          },
+          "missing_in_bank": {
+            "injected": 33,
+            "detected": 33,
+            "true_positive": 33,
+            "precision": 1.0,
+            "recall": 1.0
+          },
+          "missing_in_ledger": {
+            "injected": 16,
+            "detected": 16,
+            "true_positive": 16,
+            "precision": 1.0,
+            "recall": 1.0
+          }
+        }
+      },
+      "reconcile_ms": 9.42,
+      "example_breaks": {
+        "amount_mismatch": {
+          "kind": "amount_mismatch",
+          "ref": "DEP-000015",
+          "line_id": "BL-000013",
+          "entry_id": "entry_be790cbd36764d2a8c2e64eb",
+          "ledger_amount": 296346,
+          "bank_amount": 294893,
+          "ledger_date": "2026-09-01",
+          "bank_date": "2026-09-01",
+          "delta": -1453,
+          "days_apart": 0
+        },
+        "duplicate": {
+          "kind": "duplicate",
+          "ref": "WD-000087",
+          "line_id": "BL-000099",
+          "entry_id": "entry_f8dd76cc86634879b7f9caa0",
+          "ledger_amount": null,
+          "bank_amount": -24711,
+          "ledger_date": "2026-09-02",
+          "bank_date": "2026-09-02",
+          "delta": -24711,
+          "days_apart": 0
+        },
+        "timing": {
+          "kind": "timing",
+          "ref": "DEP-000031",
+          "line_id": "BL-000109",
+          "entry_id": "entry_b61b220f8b994a709ab0cc28",
+          "ledger_amount": 77761,
+          "bank_amount": 77761,
+          "ledger_date": "2026-09-01",
+          "bank_date": "2026-09-03",
+          "delta": 0,
+          "days_apart": 2
+        },
+        "missing_in_ledger": {
+          "kind": "missing_in_ledger",
+          "ref": null,
+          "line_id": "BL-000055",
+          "entry_id": null,
+          "ledger_amount": null,
+          "bank_amount": 474409,
+          "ledger_date": null,
+          "bank_date": "2026-09-01",
+          "delta": 474409
+        },
+        "missing_in_bank": {
+          "kind": "missing_in_bank",
+          "ref": "DEP-000016",
+          "line_id": null,
+          "entry_id": "entry_7211a8976eb94e5f9c75f629",
+          "ledger_amount": 444890,
+          "bank_amount": null,
+          "ledger_date": "2026-09-01",
+          "bank_date": null,
+          "delta": -444890
+        }
+      },
+      "ledger_invariants_ok": true
+    },
+    "stress": {
+      "period": "2026-09-01..2026-09-30",
+      "scenario": {
+        "deposits": 1015,
+        "payouts_posted": 618,
+        "payouts_failed": 35,
+        "internal_fees": 128,
+        "build_s": 1.428
+      },
+      "summary": {
+        "ledger_items": 1633,
+        "bank_lines": 1632,
+        "counts": {
+          "matched": 636,
+          "matched_fuzzy": 335,
+          "timing": 196,
+          "amount_mismatch": 98,
+          "duplicate": 65,
+          "missing_in_bank": 368,
+          "missing_in_ledger": 302
+        },
+        "breaks": 1029,
+        "auto_match_rate": 0.5946,
+        "ledger_total": 157806600,
+        "bank_total": 168029885,
+        "difference": 10223285,
+        "explained_by_breaks": 10223285,
+        "unexplained_difference": 0
+      },
+      "scoring": {
+        "injected_breaks": 792,
+        "reported_breaks": 1029,
+        "correctly_classified": 555,
+        "precision": 0.5394,
+        "recall": 0.7008,
+        "per_kind": {
+          "timing": {
+            "injected": 433,
+            "detected": 196,
+            "true_positive": 196,
+            "precision": 1.0,
+            "recall": 0.4527
+          },
+          "amount_mismatch": {
+            "injected": 98,
+            "detected": 98,
+            "true_positive": 98,
+            "precision": 1.0,
+            "recall": 1.0
+          },
+          "duplicate": {
+            "injected": 65,
+            "detected": 65,
+            "true_positive": 65,
+            "precision": 1.0,
+            "recall": 1.0
+          },
+          "missing_in_bank": {
+            "injected": 131,
+            "detected": 368,
+            "true_positive": 131,
+            "precision": 0.356,
+            "recall": 1.0
+          },
+          "missing_in_ledger": {
+            "injected": 65,
+            "detected": 302,
+            "true_positive": 65,
+            "precision": 0.2152,
+            "recall": 1.0
+          }
+        }
+      },
+      "reconcile_ms": 9.9,
+      "example_breaks": {
+        "amount_mismatch": {
+          "kind": "amount_mismatch",
+          "ref": "DEP-000020",
+          "line_id": "BL-000009",
+          "entry_id": "entry_3e81dabc33a94c03a4f4287e",
+          "ledger_amount": 331040,
+          "bank_amount": 330602,
+          "ledger_date": "2026-09-01",
+          "bank_date": "2026-09-01",
+          "delta": -438,
+          "days_apart": 0
+        },
+        "duplicate": {
+          "kind": "duplicate",
+          "ref": "DEP-000026",
+          "line_id": "BL-000014",
+          "entry_id": "entry_96b21b09765244ec937ad45d",
+          "ledger_amount": null,
+          "bank_amount": 202210,
+          "ledger_date": "2026-09-01",
+          "bank_date": "2026-09-01",
+          "delta": 202210,
+          "days_apart": 0
+        },
+        "timing": {
+          "kind": "timing",
+          "ref": "DEP-000004",
+          "line_id": "BL-000140",
+          "entry_id": "entry_85942ebaccdc4018821b4276",
+          "ledger_amount": 50404,
+          "bank_amount": 50404,
+          "ledger_date": "2026-09-01",
+          "bank_date": "2026-09-04",
+          "delta": 0,
+          "days_apart": 3
+        },
+        "missing_in_ledger": {
+          "kind": "missing_in_ledger",
+          "ref": null,
+          "line_id": "BL-000045",
+          "entry_id": null,
+          "ledger_amount": null,
+          "bank_amount": -5338,
+          "ledger_date": null,
+          "bank_date": "2026-09-01",
+          "delta": -5338
+        },
+        "missing_in_bank": {
+          "kind": "missing_in_bank",
+          "ref": "DEP-000002",
+          "line_id": null,
+          "entry_id": "entry_cf8ecdab514e4a108a35ac86",
+          "ledger_amount": 449365,
+          "bank_amount": null,
+          "ledger_date": "2026-09-01",
+          "bank_date": null,
+          "delta": -449365
+        }
+      },
+      "ledger_invariants_ok": true
+    }
+  }
+}
