@@ -1,0 +1,101 @@
+{
+  "slug": "aml",
+  "title": "AML Transaction Monitoring",
+  "tagline": "Rules plus networkx graph analytics over a synthetic bank, feeding a scored case queue with hash-chained audit trail and SAR narrative drafts.",
+  "lane": "Financial crime & compliance",
+  "stack": [
+    "Python",
+    "networkx"
+  ],
+  "metrics": [
+    {
+      "label": "Typology detection at the line",
+      "value": "87.8",
+      "unit": "%",
+      "note": "41 injected instances, 5 typologies"
+    },
+    {
+      "label": "Alert precision",
+      "value": "54.6",
+      "unit": "%",
+      "note": "alerts on ground-truth suspicious customers"
+    },
+    {
+      "label": "False-positive rate",
+      "value": "3.67",
+      "unit": "%",
+      "note": "benign customers with at least one alert"
+    },
+    {
+      "label": "Alerts per 1k customers",
+      "value": "102.0",
+      "unit": "",
+      "note": "61-day window"
+    },
+    {
+      "label": "Cases above the line per 1k",
+      "value": "18.4",
+      "unit": "",
+      "note": "case precision 49.3%"
+    }
+  ],
+  "highlights": [
+    "Versioned rule engine: structuring, velocity vs KYC profile, rapid movement, high-risk geography",
+    "networkx: time-ordered value-conserving cycle detection, MAD degree baselines, Louvain mule-ring grouping",
+    "Benign look-alikes (cash businesses, escrow, charities, life events) make false positives realistic",
+    "Cases with priority queue, simulated L1/L2/QA, SHA-256 hash-chained audit log",
+    "Above/below-the-line sweeps show the detection vs workload trade-off"
+  ],
+  "limitations": [
+    "Synthetic world: typologies are injected by the same author who wrote the rules",
+    "Analyst decisions are simulated from ground truth with noise, not real reviews",
+    "No sanctions/name screening, adverse media or entity resolution"
+  ],
+  "series": {
+    "name": "Typology detection rate vs cases per 1k customers (case-score line sweep)",
+    "x": [
+      46.3,
+      46.3,
+      46.3,
+      40.0,
+      35.3,
+      29.7,
+      20.8,
+      19.6,
+      18.4,
+      16.9,
+      12.7,
+      9.3,
+      7.8,
+      6.4,
+      6.1,
+      5.4,
+      3.9,
+      2.9,
+      2.7,
+      2.7
+    ],
+    "y": [
+      1.0,
+      1.0,
+      1.0,
+      0.9512,
+      0.9268,
+      0.9268,
+      0.878,
+      0.878,
+      0.878,
+      0.878,
+      0.878,
+      0.8049,
+      0.7073,
+      0.6098,
+      0.5854,
+      0.5122,
+      0.3659,
+      0.2927,
+      0.2683,
+      0.2683
+    ]
+  }
+}

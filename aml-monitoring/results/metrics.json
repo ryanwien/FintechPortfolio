@@ -1,0 +1,638 @@
+{
+  "config": "2026.10-r4+c082bd1d7176",
+  "seed": 20261013,
+  "world": {
+    "customers": 4080,
+    "accounts": 4080,
+    "transactions": 235439,
+    "suspicious_customers": 80,
+    "typology_instances": 41,
+    "monitoring_days": 61
+  },
+  "alerts": {
+    "total": 416,
+    "true_positive": 227,
+    "precision": 0.5457,
+    "per_1k_customers": 102.0,
+    "customers_alerted": 227,
+    "customer_recall": 1.0,
+    "false_positive_rate": 0.0367,
+    "per_rule": {
+      "GEO-01": {
+        "alerts": 39,
+        "true_positive": 19,
+        "precision": 0.4872
+      },
+      "GRA-COM": {
+        "alerts": 46,
+        "true_positive": 46,
+        "precision": 1.0
+      },
+      "GRA-CYC": {
+        "alerts": 30,
+        "true_positive": 30,
+        "precision": 1.0
+      },
+      "GRA-FIN": {
+        "alerts": 18,
+        "true_positive": 18,
+        "precision": 1.0
+      },
+      "RMF-01": {
+        "alerts": 100,
+        "true_positive": 55,
+        "precision": 0.55
+      },
+      "STR-01": {
+        "alerts": 12,
+        "true_positive": 9,
+        "precision": 0.75
+      },
+      "VEL-01": {
+        "alerts": 171,
+        "true_positive": 50,
+        "precision": 0.2924
+      }
+    }
+  },
+  "detection": {
+    "instance_detection_rate_alerts": 1.0,
+    "instance_detection_rate_at_line": 0.878,
+    "per_typology": {
+      "high_risk_layering": {
+        "instances": 8,
+        "detection_rate_alerts": 1.0,
+        "detection_rate_at_line": 0.875,
+        "member_coverage_at_line": 0.875,
+        "by_variant": {
+          "high_tier": {
+            "instances": 7,
+            "alerted": 7,
+            "at_line": 7
+          },
+          "medium_only": {
+            "instances": 1,
+            "alerted": 1,
+            "at_line": 0
+          }
+        }
+      },
+      "mule_network": {
+        "instances": 4,
+        "detection_rate_alerts": 1.0,
+        "detection_rate_at_line": 1.0,
+        "member_coverage_at_line": 1.0,
+        "by_variant": {
+          "ring": {
+            "instances": 4,
+            "alerted": 4,
+            "at_line": 4
+          }
+        }
+      },
+      "rapid_movement": {
+        "instances": 12,
+        "detection_rate_alerts": 1.0,
+        "detection_rate_at_line": 0.9167,
+        "member_coverage_at_line": 0.9167,
+        "by_variant": {
+          "fast": {
+            "instances": 9,
+            "alerted": 9,
+            "at_line": 9
+          },
+          "slow": {
+            "instances": 3,
+            "alerted": 3,
+            "at_line": 2
+          }
+        }
+      },
+      "round_tripping": {
+        "instances": 5,
+        "detection_rate_alerts": 1.0,
+        "detection_rate_at_line": 1.0,
+        "member_coverage_at_line": 1.0,
+        "by_variant": {
+          "domestic_loop": {
+            "instances": 4,
+            "alerted": 4,
+            "at_line": 4
+          },
+          "offshore_loop": {
+            "instances": 1,
+            "alerted": 1,
+            "at_line": 1
+          }
+        }
+      },
+      "structuring": {
+        "instances": 12,
+        "detection_rate_alerts": 1.0,
+        "detection_rate_at_line": 0.75,
+        "member_coverage_at_line": 0.75,
+        "by_variant": {
+          "classic": {
+            "instances": 9,
+            "alerted": 9,
+            "at_line": 9
+          },
+          "low_and_slow": {
+            "instances": 3,
+            "alerted": 3,
+            "at_line": 0
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "total": 189,
+    "above_line": 75,
+    "below_line": 114,
+    "network_cases": 8,
+    "precision_above_line": 0.4933,
+    "per_1k_customers_above_line": 18.4,
+    "line": 40.0,
+    "by_priority": {
+      "P1": 16,
+      "P2": 16,
+      "P3": 43
+    }
+  },
+  "benign_lookalikes": {
+    "cash_intensive_business": {
+      "customers": 181,
+      "alerted": 2,
+      "in_case_above_line": 0
+    },
+    "contract_payment_spike": {
+      "customers": 36,
+      "alerted": 19,
+      "in_case_above_line": 1
+    },
+    "family_support_wire": {
+      "customers": 19,
+      "alerted": 19,
+      "in_case_above_line": 0
+    },
+    "importer": {
+      "customers": 73,
+      "alerted": 1,
+      "in_case_above_line": 0
+    },
+    "intercompany_group": {
+      "customers": 30,
+      "alerted": 0,
+      "in_case_above_line": 0
+    },
+    "life_event": {
+      "customers": 105,
+      "alerted": 105,
+      "in_case_above_line": 37
+    },
+    "nonprofit_donations": {
+      "customers": 18,
+      "alerted": 0,
+      "in_case_above_line": 0
+    },
+    "property_management": {
+      "customers": 80,
+      "alerted": 0,
+      "in_case_above_line": 0
+    },
+    "remitter": {
+      "customers": 237,
+      "alerted": 0,
+      "in_case_above_line": 0
+    },
+    "staffing_payroll": {
+      "customers": 33,
+      "alerted": 0,
+      "in_case_above_line": 0
+    },
+    "title_escrow": {
+      "customers": 25,
+      "alerted": 0,
+      "in_case_above_line": 0
+    }
+  },
+  "analyst_simulation": {
+    "cases_reviewed": 75,
+    "sars_filed": 32,
+    "sar_conversion_rate": 0.4267,
+    "sars_on_true_cases": 31,
+    "sars_on_benign_cases": 1,
+    "true_cases_closed_without_sar": 6,
+    "decision_accuracy": 0.9067
+  },
+  "audit": {
+    "entries": 1096,
+    "verified": true,
+    "head_hash": "55586ced776647b03df20ba6ee931946106b441e75ba91f746e61fd3772d3c57"
+  },
+  "line_sweep": [
+    {
+      "line": 0.0,
+      "cases": 189,
+      "cases_per_1k": 46.3,
+      "detection_rate": 1.0,
+      "case_precision": 0.2222
+    },
+    {
+      "line": 5.0,
+      "cases": 189,
+      "cases_per_1k": 46.3,
+      "detection_rate": 1.0,
+      "case_precision": 0.2222
+    },
+    {
+      "line": 10.0,
+      "cases": 189,
+      "cases_per_1k": 46.3,
+      "detection_rate": 1.0,
+      "case_precision": 0.2222
+    },
+    {
+      "line": 15.0,
+      "cases": 163,
+      "cases_per_1k": 40.0,
+      "detection_rate": 0.9512,
+      "case_precision": 0.2454
+    },
+    {
+      "line": 20.0,
+      "cases": 144,
+      "cases_per_1k": 35.3,
+      "detection_rate": 0.9268,
+      "case_precision": 0.2708
+    },
+    {
+      "line": 25.0,
+      "cases": 121,
+      "cases_per_1k": 29.7,
+      "detection_rate": 0.9268,
+      "case_precision": 0.3223
+    },
+    {
+      "line": 30.0,
+      "cases": 85,
+      "cases_per_1k": 20.8,
+      "detection_rate": 0.878,
+      "case_precision": 0.4353
+    },
+    {
+      "line": 35.0,
+      "cases": 80,
+      "cases_per_1k": 19.6,
+      "detection_rate": 0.878,
+      "case_precision": 0.4625
+    },
+    {
+      "line": 40.0,
+      "cases": 75,
+      "cases_per_1k": 18.4,
+      "detection_rate": 0.878,
+      "case_precision": 0.4933
+    },
+    {
+      "line": 45.0,
+      "cases": 69,
+      "cases_per_1k": 16.9,
+      "detection_rate": 0.878,
+      "case_precision": 0.5362
+    },
+    {
+      "line": 50.0,
+      "cases": 52,
+      "cases_per_1k": 12.7,
+      "detection_rate": 0.878,
+      "case_precision": 0.7115
+    },
+    {
+      "line": 55.0,
+      "cases": 38,
+      "cases_per_1k": 9.3,
+      "detection_rate": 0.8049,
+      "case_precision": 0.8947
+    },
+    {
+      "line": 60.0,
+      "cases": 32,
+      "cases_per_1k": 7.8,
+      "detection_rate": 0.7073,
+      "case_precision": 0.9375
+    },
+    {
+      "line": 65.0,
+      "cases": 26,
+      "cases_per_1k": 6.4,
+      "detection_rate": 0.6098,
+      "case_precision": 1.0
+    },
+    {
+      "line": 70.0,
+      "cases": 25,
+      "cases_per_1k": 6.1,
+      "detection_rate": 0.5854,
+      "case_precision": 1.0
+    },
+    {
+      "line": 75.0,
+      "cases": 22,
+      "cases_per_1k": 5.4,
+      "detection_rate": 0.5122,
+      "case_precision": 1.0
+    },
+    {
+      "line": 80.0,
+      "cases": 16,
+      "cases_per_1k": 3.9,
+      "detection_rate": 0.3659,
+      "case_precision": 1.0
+    },
+    {
+      "line": 85.0,
+      "cases": 12,
+      "cases_per_1k": 2.9,
+      "detection_rate": 0.2927,
+      "case_precision": 1.0
+    },
+    {
+      "line": 90.0,
+      "cases": 11,
+      "cases_per_1k": 2.7,
+      "detection_rate": 0.2683,
+      "case_precision": 1.0
+    },
+    {
+      "line": 95.0,
+      "cases": 11,
+      "cases_per_1k": 2.7,
+      "detection_rate": 0.2683,
+      "case_precision": 1.0
+    }
+  ],
+  "rule_sweeps": {
+    "STR-01.band_low_dollars": [
+      {
+        "alerts": 45,
+        "true_positive": 10,
+        "precision": 0.2222,
+        "target_typology": "structuring",
+        "target_detection_rate": 0.8333,
+        "value": 6000
+      },
+      {
+        "alerts": 23,
+        "true_positive": 9,
+        "precision": 0.3913,
+        "target_typology": "structuring",
+        "target_detection_rate": 0.75,
+        "value": 7000
+      },
+      {
+        "alerts": 12,
+        "true_positive": 9,
+        "precision": 0.75,
+        "target_typology": "structuring",
+        "target_detection_rate": 0.75,
+        "value": 8000
+      },
+      {
+        "alerts": 8,
+        "true_positive": 8,
+        "precision": 1.0,
+        "target_typology": "structuring",
+        "target_detection_rate": 0.6667,
+        "value": 9000
+      }
+    ],
+    "STR-01.min_count": [
+      {
+        "alerts": 12,
+        "true_positive": 9,
+        "precision": 0.75,
+        "target_typology": "structuring",
+        "target_detection_rate": 0.75,
+        "value": 2
+      },
+      {
+        "alerts": 12,
+        "true_positive": 9,
+        "precision": 0.75,
+        "target_typology": "structuring",
+        "target_detection_rate": 0.75,
+        "value": 3
+      },
+      {
+        "alerts": 9,
+        "true_positive": 9,
+        "precision": 1.0,
+        "target_typology": "structuring",
+        "target_detection_rate": 0.75,
+        "value": 4
+      },
+      {
+        "alerts": 9,
+        "true_positive": 9,
+        "precision": 1.0,
+        "target_typology": "structuring",
+        "target_detection_rate": 0.75,
+        "value": 5
+      }
+    ],
+    "RMF-01.out_window_hours": [
+      {
+        "alerts": 45,
+        "true_positive": 29,
+        "precision": 0.6444,
+        "target_typology": "rapid_movement",
+        "target_detection_rate": 0.6667,
+        "value": 24
+      },
+      {
+        "alerts": 100,
+        "true_positive": 55,
+        "precision": 0.55,
+        "target_typology": "rapid_movement",
+        "target_detection_rate": 0.75,
+        "value": 48
+      },
+      {
+        "alerts": 145,
+        "true_positive": 71,
+        "precision": 0.4897,
+        "target_typology": "rapid_movement",
+        "target_detection_rate": 1.0,
+        "value": 72
+      },
+      {
+        "alerts": 164,
+        "true_positive": 77,
+        "precision": 0.4695,
+        "target_typology": "rapid_movement",
+        "target_detection_rate": 1.0,
+        "value": 96
+      }
+    ],
+    "RMF-01.out_ratio": [
+      {
+        "alerts": 110,
+        "true_positive": 58,
+        "precision": 0.5273,
+        "target_typology": "rapid_movement",
+        "target_detection_rate": 0.75,
+        "value": 0.6
+      },
+      {
+        "alerts": 106,
+        "true_positive": 57,
+        "precision": 0.5377,
+        "target_typology": "rapid_movement",
+        "target_detection_rate": 0.75,
+        "value": 0.7
+      },
+      {
+        "alerts": 100,
+        "true_positive": 55,
+        "precision": 0.55,
+        "target_typology": "rapid_movement",
+        "target_detection_rate": 0.75,
+        "value": 0.8
+      },
+      {
+        "alerts": 83,
+        "true_positive": 47,
+        "precision": 0.5663,
+        "target_typology": "rapid_movement",
+        "target_detection_rate": 0.5833,
+        "value": 0.9
+      }
+    ],
+    "VEL-01.volume_multiple": [
+      {
+        "alerts": 204,
+        "true_positive": 50,
+        "precision": 0.2451,
+        "target_typology": "rapid_movement",
+        "target_detection_rate": 1.0,
+        "value": 2.0
+      },
+      {
+        "alerts": 183,
+        "true_positive": 50,
+        "precision": 0.2732,
+        "target_typology": "rapid_movement",
+        "target_detection_rate": 1.0,
+        "value": 3.0
+      },
+      {
+        "alerts": 171,
+        "true_positive": 50,
+        "precision": 0.2924,
+        "target_typology": "rapid_movement",
+        "target_detection_rate": 1.0,
+        "value": 4.0
+      },
+      {
+        "alerts": 150,
+        "true_positive": 48,
+        "precision": 0.32,
+        "target_typology": "rapid_movement",
+        "target_detection_rate": 0.9167,
+        "value": 6.0
+      },
+      {
+        "alerts": 138,
+        "true_positive": 47,
+        "precision": 0.3406,
+        "target_typology": "rapid_movement",
+        "target_detection_rate": 0.9167,
+        "value": 8.0
+      }
+    ],
+    "GEO-01.high_risk_min_dollars": [
+      {
+        "alerts": 39,
+        "true_positive": 19,
+        "precision": 0.4872,
+        "target_typology": "high_risk_layering",
+        "target_detection_rate": 0.875,
+        "value": 10000
+      },
+      {
+        "alerts": 39,
+        "true_positive": 19,
+        "precision": 0.4872,
+        "target_typology": "high_risk_layering",
+        "target_detection_rate": 0.875,
+        "value": 20000
+      },
+      {
+        "alerts": 31,
+        "true_positive": 19,
+        "precision": 0.6129,
+        "target_typology": "high_risk_layering",
+        "target_detection_rate": 0.875,
+        "value": 40000
+      },
+      {
+        "alerts": 17,
+        "true_positive": 16,
+        "precision": 0.9412,
+        "target_typology": "high_risk_layering",
+        "target_detection_rate": 0.875,
+        "value": 80000
+      }
+    ],
+    "GRA-FIN.fan_in_min": [
+      {
+        "alerts": 47,
+        "true_positive": 32,
+        "precision": 0.6809,
+        "target_typology": "mule_network",
+        "target_detection_rate": 1.0,
+        "value": 3
+      },
+      {
+        "alerts": 33,
+        "true_positive": 31,
+        "precision": 0.9394,
+        "target_typology": "mule_network",
+        "target_detection_rate": 1.0,
+        "value": 4
+      },
+      {
+        "alerts": 18,
+        "true_positive": 18,
+        "precision": 1.0,
+        "target_typology": "mule_network",
+        "target_detection_rate": 1.0,
+        "value": 5
+      },
+      {
+        "alerts": 12,
+        "true_positive": 12,
+        "precision": 1.0,
+        "target_typology": "mule_network",
+        "target_detection_rate": 1.0,
+        "value": 6
+      },
+      {
+        "alerts": 1,
+        "true_positive": 1,
+        "precision": 1.0,
+        "target_typology": "mule_network",
+        "target_detection_rate": 0.25,
+        "value": 8
+      }
+    ]
+  },
+  "degree_thresholds": {
+    "business:in": 11,
+    "business:out": 43,
+    "individual:in": 5,
+    "individual:out": 11
+  }
+}
