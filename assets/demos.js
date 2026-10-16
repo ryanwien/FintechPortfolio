@@ -17,10 +17,13 @@
   // licensed, nothing to attribute. They only ever play in response to a click.
   let audioCtx = null, muted = false;
   try { muted = localStorage.getItem("demo-muted") === "1"; } catch (_) { /* private mode */ }
-  function tone(freq, ms, { type = "sine", gain = 0.08, at = 0, slide = 0 } = {}) {
+  function tone(freq, ms, { type = "sine", gain = 0.25, at = 0, slide = 0 } = {}) {
     if (muted) return;
     try {
       audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+      // Browsers hand out suspended contexts outside (or sometimes even inside) a
+      // gesture; resuming on every cue keeps the first click audible.
+      if (audioCtx.state === "suspended") audioCtx.resume();
       const t0 = audioCtx.currentTime + at;
       const osc = audioCtx.createOscillator();
       const g = audioCtx.createGain();
@@ -36,15 +39,15 @@
     } catch (_) { /* no audio device — demos work silently */ }
   }
   const sfx = {
-    open: () => tone(520, 90, { type: "triangle", gain: 0.05 }),
-    good: () => { tone(660, 90, { type: "triangle" }); tone(990, 120, { type: "triangle", at: 0.07 }); },
-    bad: () => tone(220, 180, { type: "square", gain: 0.05, slide: -80 }),
-    tick: () => tone(1400, 35, { type: "square", gain: 0.03 }),
-    warn: () => tone(440, 140, { type: "sawtooth", gain: 0.04, slide: -60 }),
-    alarm: () => { tone(880, 120, { type: "square", gain: 0.05 }); tone(880, 120, { type: "square", gain: 0.05, at: 0.16 }); },
+    open: () => tone(520, 120, { type: "triangle", gain: 0.18 }),
+    good: () => { tone(660, 120, { type: "triangle" }); tone(990, 170, { type: "triangle", at: 0.08 }); },
+    bad: () => tone(200, 260, { type: "square", gain: 0.16, slide: -70 }),
+    tick: () => tone(1250, 55, { type: "square", gain: 0.1 }),
+    warn: () => tone(430, 200, { type: "sawtooth", gain: 0.14, slide: -60 }),
+    alarm: () => { tone(880, 150, { type: "square", gain: 0.16 }); tone(880, 150, { type: "square", gain: 0.16, at: 0.2 }); },
   };
   function muteButton() {
-    const b = el("button", "demo__close", muted ? "🔇" : "🔊");
+    const b = el("button", "demo__close demo__mute", muted ? "🔇" : "🔊");
     b.type = "button";
     b.setAttribute("aria-label", muted ? "Unmute demo sounds" : "Mute demo sounds");
     b.setAttribute("aria-pressed", String(muted));

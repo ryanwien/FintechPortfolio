@@ -326,3 +326,4 @@ svg { display: block; }
 .dlvl--bid i { background: var(--up-soft); }
 .card .dbtn--demo { margin-top: 2px; }
 @media (max-width: 640px) { .demo { max-height: 94vh; } .dgrid2 { grid-template-columns: 1fr; } }
+.demo__mute { font-size: 15px; }
