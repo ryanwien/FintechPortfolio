@@ -327,3 +327,4 @@ svg { display: block; }
 .card .dbtn--demo { margin-top: 2px; }
 @media (max-width: 640px) { .demo { max-height: 94vh; } .dgrid2 { grid-template-columns: 1fr; } }
 .demo__mute { font-size: 15px; }
+.plain { margin: 0 0 18px; padding: 12px 14px; border-left: 3px solid var(--accent); border-radius: 0 10px 10px 0; background: var(--accent-soft); font-size: 14.5px; line-height: 1.55; }

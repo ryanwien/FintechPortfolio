@@ -6,6 +6,14 @@
   const SYM = { ledger: "LDG", fraud: "FRD", credit: "CRD", exchange: "XCH", aml: "AML" };
   const COLORS = ["#b6ef5a", "#7cb3ff", "#f5b84a", "#ff7b86", "#c084fc"];
   const NAMES = { ledger: "Ledger & payments", fraud: "Fraud scoring", credit: "Credit risk", exchange: "Matching engine", aml: "AML monitoring" };
+  // One sentence per system that a non-technical recruiter can read cold.
+  const PLAIN = {
+    ledger: "The bookkeeping engine behind a payments app: it moves money between accounts without ever losing a cent, even when the same request is sent twice or a thousand arrive at once.",
+    fraud: "Decides in under a millisecond whether a card payment looks stolen, and prices the decision in dollars: block too little and fraud walks, block too much and real customers get declined.",
+    credit: "Decides who qualifies for a loan the way a regulated lender has to: provably fair across groups, with the exact reasons every declined applicant is legally owed.",
+    exchange: "A miniature stock exchange: it matches buyers with sellers at 150,000+ orders per second, the core of how markets like NASDAQ work.",
+    aml: "The compliance watchdog banks are required to run: it spots patterns criminals use to launder money and keeps a tamper-proof evidence trail for regulators.",
+  };
   const $ = (sel, root = document) => root.querySelector(sel);
   const el = (tag, cls, text) => {
     const n = document.createElement(tag);
@@ -186,7 +194,7 @@
   function viewOverview() {
     const v = $("#t-overview").content.cloneNode(true);
     $("[data-big]", v).textContent = fmtInt(META.tests ?? 0);
-    $("[data-big-pill]", v).textContent = "run in CI";
+    $("[data-big-pill]", v).textContent = "all passing";
     $("[data-loc]", v).textContent = fmtInt(META.loc ?? 0);
     $("[data-count]", v).textContent = String(DATA.length);
     const chart = $("[data-chart]", v);
@@ -216,7 +224,7 @@
       tr.addEventListener("click", go); tr.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
       const td1 = el("td"); const sys = el("div", "sys");
       sys.append(el("span", "sys__ic sys__ic--on", SYM[p.slug]));
-      const txt = el("div", "txt"); txt.append(el("b", null, p.title), el("small", null, p.tagline)); sys.append(txt); td1.append(sys);
+      const txt = el("div", "txt"); txt.append(el("b", null, p.title), el("small", null, PLAIN[p.slug] || p.tagline)); sys.append(txt); td1.append(sys);
       const td2 = el("td", "mono hide-sm", p.lane);
       const m = p.metrics[0]; const td3 = el("td"); td3.append(pillFor(`${m.value}${m.unit ? " " + m.unit : ""}`), document.createTextNode(" "), el("span", "dim", m.label));
       const td4 = el("td", "r mono", String(p.tests));
@@ -250,6 +258,7 @@
     $("[data-big-note]", v).textContent = m0.note || "";
     $("[data-title]", v).textContent = p.title;
     $("[data-tagline]", v).textContent = p.tagline;
+    $("[data-plain]", v).textContent = PLAIN[p.slug] || "";
     $("[data-demo]", v).addEventListener("click", () => window.openDemo?.(p.slug));
     $("[data-src]", v).href = `${REPO}/tree/main/${p.folder}`;
     $("[data-report-link]", v).href = `${REPO}/blob/main/${p.folder}/results/REPORT.md`;
