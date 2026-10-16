@@ -12,6 +12,53 @@
   };
   const usd = (cents) => (cents / 100).toLocaleString(undefined, { style: "currency", currency: "USD" });
 
+  // ---------- sound effects ----------
+  // All cues are synthesized live with the Web Audio API — no audio files, nothing
+  // licensed, nothing to attribute. They only ever play in response to a click.
+  let audioCtx = null, muted = false;
+  try { muted = localStorage.getItem("demo-muted") === "1"; } catch (_) { /* private mode */ }
+  function tone(freq, ms, { type = "sine", gain = 0.08, at = 0, slide = 0 } = {}) {
+    if (muted) return;
+    try {
+      audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
+      const t0 = audioCtx.currentTime + at;
+      const osc = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(freq, t0);
+      if (slide) osc.frequency.exponentialRampToValueAtTime(Math.max(40, freq + slide), t0 + ms / 1000);
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(gain, t0 + 0.012);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + ms / 1000);
+      osc.connect(g).connect(audioCtx.destination);
+      osc.start(t0);
+      osc.stop(t0 + ms / 1000 + 0.02);
+    } catch (_) { /* no audio device — demos work silently */ }
+  }
+  const sfx = {
+    open: () => tone(520, 90, { type: "triangle", gain: 0.05 }),
+    good: () => { tone(660, 90, { type: "triangle" }); tone(990, 120, { type: "triangle", at: 0.07 }); },
+    bad: () => tone(220, 180, { type: "square", gain: 0.05, slide: -80 }),
+    tick: () => tone(1400, 35, { type: "square", gain: 0.03 }),
+    warn: () => tone(440, 140, { type: "sawtooth", gain: 0.04, slide: -60 }),
+    alarm: () => { tone(880, 120, { type: "square", gain: 0.05 }); tone(880, 120, { type: "square", gain: 0.05, at: 0.16 }); },
+  };
+  function muteButton() {
+    const b = el("button", "demo__close", muted ? "🔇" : "🔊");
+    b.type = "button";
+    b.setAttribute("aria-label", muted ? "Unmute demo sounds" : "Mute demo sounds");
+    b.setAttribute("aria-pressed", String(muted));
+    b.addEventListener("click", () => {
+      muted = !muted;
+      try { localStorage.setItem("demo-muted", muted ? "1" : "0"); } catch (_) { /* ignore */ }
+      b.textContent = muted ? "🔇" : "🔊";
+      b.setAttribute("aria-pressed", String(muted));
+      b.setAttribute("aria-label", muted ? "Unmute demo sounds" : "Mute demo sounds");
+      if (!muted) sfx.open();
+    });
+    return b;
+  }
+
   // ---------- modal plumbing ----------
   let overlay = null, lastFocus = null, teardown = null;
   function closeDemo() {
@@ -37,7 +84,7 @@
     const x = el("button", "demo__close", "✕");
     x.setAttribute("aria-label", "Close demo");
     x.addEventListener("click", closeDemo);
-    head.append(ttl, x);
+    head.append(ttl, muteButton(), x);
     const body = el("div", "demo__body");
     box.append(head, body, el("p", "demo__note",
       "Interactive model running in your browser to show the mechanism. The metrics on the cards come from the real Python system in this repo."));
@@ -45,6 +92,7 @@
     document.body.append(overlay);
     document.body.style.overflow = "hidden";
     teardown = build.mount(body) || null;
+    sfx.open();
     x.focus();
   }
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && overlay) closeDemo(); });
@@ -108,14 +156,16 @@
         trial.textContent = `trial balance: debits − credits = ${usd(0)} ✓ · money in system: ${usd(wallets["Wallet A"] + wallets["Wallet B"])}`;
       };
       function transfer(amount, key) {
-        if (seen.has(key)) { add(`↻ ${key} replayed — stored response returned, nothing posted`, "is-dim"); return; }
+        if (seen.has(key)) { sfx.tick(); add(`↻ ${key} replayed — stored response returned, nothing posted`, "is-dim"); return; }
         if (wallets["Wallet A"] < amount) {
           seen.set(key, "rejected");
+          sfx.bad();
           add(`✗ ${key} rejected: insufficient_funds (Wallet A has ${usd(wallets["Wallet A"])}, needs ${usd(amount)})`, "is-bad");
           return;
         }
         wallets["Wallet A"] -= amount; wallets["Wallet B"] += amount;
         seen.set(key, "posted");
+        sfx.good();
         add(`✓ entry ${++seq} posted — DR Wallet A ${usd(amount)} · CR Wallet B ${usd(amount)}  [${key}]`, "is-good");
         paint();
       }
@@ -171,6 +221,8 @@
         fill.style.width = `${(p * 100).toFixed(1)}%`;
         fill.className = p < 0.18 ? "ok" : p < 0.58 ? "warn" : "bad";
         const d = p < 0.18 ? ["APPROVE", "ok"] : p < 0.58 ? ["REVIEW — route to an analyst", "warn"] : ["DECLINE", "bad"];
+        if (verdict.dataset.band && verdict.dataset.band !== d[1]) ({ ok: sfx.good, warn: sfx.warn, bad: sfx.bad })[d[1]]();
+        verdict.dataset.band = d[1];
         verdict.textContent = `score ${p.toFixed(3)} → ${d[0]}`;
         verdict.className = `dverdict is-${d[1]}`;
         reasons.replaceChildren(...(p < 0.18
@@ -226,6 +278,9 @@
         const foot = el("tr", "dtable__total");
         foot.append(el("td", null, "Score (base 540)"), el("td"), el("td", "num", String(total)));
         tb.append(foot);
+        const band = total >= CUTOFF ? "ok" : "bad";
+        if (verdict.dataset.band && verdict.dataset.band !== band) (band === "ok" ? sfx.good : sfx.bad)();
+        verdict.dataset.band = band;
         if (total >= CUTOFF) {
           verdict.textContent = `${total} ≥ cutoff ${CUTOFF} → APPROVED`;
           verdict.className = "dverdict is-ok";
@@ -289,6 +344,7 @@
         while (left > 0 && book[side].size > 2) {
           const px = best(side), avail = book[side].get(px), take = Math.min(avail, left);
           left -= take; fills++; traded += take; lastPx = px; lastUp = buy;
+          sfx.tick();
           add(`fill ${take} @ ${usd(px)} (${buy ? "buy" : "sell"} aggressor${take === avail ? ", level cleared" : ""})`, buy ? "is-good" : "is-bad");
           if (take === avail) book[side].delete(px); else book[side].set(px, avail - take);
         }
@@ -351,10 +407,12 @@
         const cash = txns.filter((t) => t.kind === "cash deposit" && t.amountC >= 800000 && t.amountC < 1000000);
         if (cash.length >= 3) {
           const total = cash.reduce((a, t) => a + t.amountC, 0);
+          sfx.alarm();
           verdict.textContent = `ALERT: structuring — ${cash.length} cash deposits just under $10,000 (total ${usd(total)}) → case opened, SAR narrative drafted`;
           verdict.className = "dverdict is-bad";
           auditLine(`rule structuring_v1 fired on ${cash.length} txns; case CASE-1 opened`);
         } else {
+          sfx.good();
           verdict.textContent = "No alert: activity is consistent with the customer's declared profile.";
           verdict.className = "dverdict is-ok";
           auditLine(`rules ran clean over ${txns.length} txns`);
@@ -372,11 +430,13 @@
         chain = 7;
         for (let i = 0; i < audit.length; i++) {
           if (hash(audit[i].text) !== audit[i].h) {
+            sfx.alarm();
             verdict.textContent = `TAMPER DETECTED at entry ${i + 1}: stored hash ${audit[i].h} no longer matches the chain. Every later entry is invalidated too.`;
             verdict.className = "dverdict is-bad";
             return;
           }
         }
+        sfx.good();
         verdict.textContent = `audit chain verifies: ${audit.length} entries intact`;
         verdict.className = "dverdict is-ok";
       }
