@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: "3.14"
       - run: pip install ruff==0.17.0
       # One ruff.toml at the repo root governs every project.
       - run: ruff check .
@@ -32,7 +32,7 @@ jobs:
       fail-fast: false
       matrix:
         project: [ledger, fraud-scoring, credit-risk, matching-engine, aml-monitoring]
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.12", "3.13", "3.14"]
     defaults:
       run:
         working-directory: ${{ matrix.project }}
@@ -47,5 +47,5 @@ jobs:
       # Everything runs on deterministic synthetic data: no network, no keys.
       - run: pytest
       - name: End-to-end run
-        if: matrix.python-version == '3.13'
+        if: matrix.python-version == '3.14'
         run: python -m "$(cat .run)"

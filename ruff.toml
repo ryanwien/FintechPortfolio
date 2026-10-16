@@ -1,6 +1,6 @@
 # One lint standard for every project in the repo.
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 
 [lint]
 select = [

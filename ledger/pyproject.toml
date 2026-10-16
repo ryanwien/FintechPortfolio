@@ -7,7 +7,7 @@ name = "ledger"
 version = "1.0.0"
 description = "Double-entry ledger & payments API: append-only journal, idempotent payments, holds, reconciliation"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = "MIT"
 dependencies = [
     "fastapi==0.143.0",

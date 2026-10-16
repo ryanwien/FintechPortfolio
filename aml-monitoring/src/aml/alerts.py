@@ -11,15 +11,15 @@ Alert scores are clamped to ``[0, MAX_ALERT_SCORE]`` and rounded to 4 places.
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from typing import Any, Final, TypeAlias
+from typing import Any, Final
 
 from .model import DAY, Txn
 
 MAX_ALERT_SCORE: Final = 1.0
 SCORE_DECIMALS: Final = 4
 
-Details: TypeAlias = dict[str, Any]
-Hit: TypeAlias = tuple[list[Txn], Details]
+type Details = dict[str, Any]
+type Hit = tuple[list[Txn], Details]
 """One raw detector hit: the evidencing transactions and what the detector measured."""
 
 

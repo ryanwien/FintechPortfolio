@@ -24,7 +24,7 @@ from collections.abc import Callable, Mapping, Sequence
 from contextlib import AbstractContextManager
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Final, TypeAlias
+from typing import Any, Final
 
 from ledger import idempotency as idem
 from ledger import integrity, repository
@@ -50,7 +50,7 @@ __all__ = ["Ledger", "compute_balances"]
 DEFAULT_PAGE_SIZE: Final = 50
 MAX_PAGE_SIZE: Final = 500
 
-Operation: TypeAlias = Callable[[sqlite3.Connection], dict[str, Any]]
+type Operation = Callable[[sqlite3.Connection], dict[str, Any]]
 
 
 class Ledger:

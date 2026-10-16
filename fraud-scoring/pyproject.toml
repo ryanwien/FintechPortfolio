@@ -7,7 +7,7 @@ name = "fraud-scoring"
 version = "1.0.0"
 description = "Real-time card fraud scoring: streaming point-in-time features, GBDT, cost-based decisioning"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = "MIT"
 dependencies = [
     "fastapi==0.143.0",

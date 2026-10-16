@@ -7,7 +7,7 @@ name = "aml-monitoring"
 version = "1.0.0"
 description = "AML transaction monitoring with graph analytics and case management"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = "MIT"
 dependencies = ["networkx==3.7"]
 

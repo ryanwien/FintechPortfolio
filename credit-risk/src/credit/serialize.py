@@ -7,11 +7,11 @@ platforms and diffs cleanly between runs. Rendering modules read only this round
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Final, TypeAlias
+from typing import Any, Final
 
 from credit.fairness import FairnessSummary
 
-Metrics: TypeAlias = dict[str, Any]
+type Metrics = dict[str, Any]
 """The nested metrics dictionary written to ``metrics.json`` and read by every renderer."""
 
 METRIC_DECIMALS: Final[int] = 4

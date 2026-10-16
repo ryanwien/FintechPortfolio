@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
-from typing import Any, TypeAlias
+from typing import Any
 
 from ledger.balances import (
     PENDING_CREDITS,
@@ -26,7 +26,7 @@ from ledger.balances import (
 )
 from ledger.domain import Direction
 
-TrialBalance: TypeAlias = dict[str, dict[str, int]]
+type TrialBalance = dict[str, dict[str, int]]
 
 
 @dataclass(frozen=True, slots=True)

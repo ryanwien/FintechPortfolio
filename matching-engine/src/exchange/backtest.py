@@ -24,7 +24,7 @@ import math
 import statistics
 import sys
 from dataclasses import dataclass, field
-from typing import Any, Final, TypeVar
+from typing import Any, Final
 
 from .config import (
     BACKTEST_SEED,
@@ -43,8 +43,6 @@ UNITS_PER_TICK: Final = 100  # $0.01 tick / $0.0001 unit
 UNITS_PER_HALF_TICK: Final = UNITS_PER_TICK // 2  # value of one unit of mid_x2
 UNITS_PER_USD: Final = 10_000
 VIEW_DEPTH: Final = 5  # L2 levels per side shown to strategies
-
-_T = TypeVar("_T")
 
 
 @dataclass(frozen=True, slots=True)
@@ -253,7 +251,7 @@ def summarize(res: BacktestResult, steps_per_day: int = STEPS_PER_DAY) -> dict[s
     }
 
 
-def downsample(xs: list[_T], n: int = SERIES_POINTS) -> tuple[list[int], list[_T]]:
+def downsample[T](xs: list[T], n: int = SERIES_POINTS) -> tuple[list[int], list[T]]:
     """At most ``n`` evenly spaced (index, value) samples, always keeping both ends."""
     if len(xs) <= n:
         return list(range(len(xs))), list(xs)

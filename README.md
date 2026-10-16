@@ -38,7 +38,7 @@ python tools/build_site.py                           # refresh the dashboard dat
 ```
 
 CI lints and format-checks the whole repo with one shared `ruff.toml`, tests all five projects
-on Python 3.11, 3.12 and 3.13, and runs each project end to end on every push. Repo-wide rules
+on Python 3.12, 3.13 and 3.14, and runs each project end to end on every push. Repo-wide rules
 are in [CONVENTIONS.md](./CONVENTIONS.md).
 
 ## Repository layout

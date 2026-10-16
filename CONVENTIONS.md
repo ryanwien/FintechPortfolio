@@ -17,7 +17,8 @@ These apply to all five projects. CI enforces everything marked *(CI)*.
 
 ## Code
 
-- Python 3.11+ *(CI: 3.11, 3.12, 3.13)*.
+- Python 3.12+ *(CI: 3.12, 3.13, 3.14)*, following the scientific-Python support window
+  (NumPy 2.5 and networkx 3.7 require 3.12).
 - One lint and format standard: the root `ruff.toml`, line length 100 *(CI: `ruff check .`,
   `ruff format --check .`)*. `pre-commit install` runs the same checks locally.
 - Type hints on every public function; frozen, slotted dataclasses for value objects; `Final`
@@ -35,7 +36,7 @@ These apply to all five projects. CI enforces everything marked *(CI)*.
 ## Results
 
 - `python -m $(cat .run)` regenerates `results/metrics.json`, `results/REPORT.md` and
-  `results/site.json` *(CI runs it on 3.13)*. Nothing in `results/` is written by hand.
+  `results/site.json` *(CI runs it on 3.14)*. Nothing in `results/` is written by hand.
 - Re-running produces byte-identical output except wall-clock timings.
 - README numbers are copied from `results/`. Every README ends with "Limitations" and
   "What I'd do next".

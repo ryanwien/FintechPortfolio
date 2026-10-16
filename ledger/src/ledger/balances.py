@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Mapping
-from typing import Final, TypeAlias
+from typing import Final
 
 from ledger.domain import (
     AccountType,
@@ -30,8 +30,8 @@ from ledger.domain import (
 )
 
 # (posted_debits, posted_credits, pending_debits, pending_credits)
-Delta: TypeAlias = list[int]
-Totals: TypeAlias = tuple[int, int, int, int]
+type Delta = list[int]
+type Totals = tuple[int, int, int, int]
 
 POSTED_DEBITS: Final = 0
 POSTED_CREDITS: Final = 1

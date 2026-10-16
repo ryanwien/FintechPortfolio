@@ -181,7 +181,7 @@
       legend.append(li);
     });
     const kv = $("[data-kv]", v);
-    [["Test cases (pytest)", fmtInt(META.tests ?? 0)], ["Python versions in CI", "3.11 · 3.12 · 3.13"], ["External services needed", "none"], ["Money represented as", "integer cents"]]
+    [["Test cases (pytest)", fmtInt(META.tests ?? 0)], ["Python versions in CI", "3.12 · 3.13 · 3.14"], ["External services needed", "none"], ["Money represented as", "integer cents"]]
       .forEach(([k, val]) => { const li = el("li"); li.append(el("span", null, k), el("b", null, val)); kv.append(li); });
 
     const kpis = $("[data-kpis]", v);

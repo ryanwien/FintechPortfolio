@@ -11,7 +11,7 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass, field, fields, is_dataclass, replace
 from pathlib import Path
-from typing import Any, Final, TypeVar
+from typing import Any, Final
 
 from .model import COUNTRY_TIERS
 
@@ -20,8 +20,6 @@ from .model import COUNTRY_TIERS
 DEFAULT_SEED: Final = 20261013
 DEFAULT_CUSTOMERS: Final = 4000
 FINGERPRINT_HEX_CHARS: Final = 12
-
-_C = TypeVar("_C")
 
 
 class UnknownConfigKeyError(KeyError):
@@ -155,7 +153,7 @@ class MonitoringConfig:
         return f"{self.version}+{self.fingerprint()}"
 
 
-def _apply(obj: _C, overrides: dict[str, Any]) -> _C:
+def _apply[C](obj: C, overrides: dict[str, Any]) -> C:
     """Recursively apply JSON overrides to a frozen config dataclass."""
     changes: dict[str, Any] = {}
     names = {f.name for f in fields(obj)}

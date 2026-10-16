@@ -126,7 +126,9 @@ class LedgerMachine(RuleBasedStateMachine):
     @precondition(lambda self: self.payments)
     @rule(data=st.data(), action=st.sampled_from(["capture", "fail", "reverse"]))
     def advance_payment(self, data: st.DataObject, action: str) -> None:
-        pid = data.draw(st.sampled_from(sorted(self.payments)))
+        # Draw by creation order, not sorted(): ids are random UUIDs, so a sorted order would
+        # differ when Hypothesis replays an example and make data generation non-reproducible.
+        pid = data.draw(st.sampled_from(list(self.payments)))
         src, dst, amt, status = self.payments[pid]
         fn = {
             "capture": self.ledger.capture_payment,
