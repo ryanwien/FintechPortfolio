@@ -221,7 +221,13 @@
       const m = p.metrics[0]; const td3 = el("td"); td3.append(pillFor(`${m.value}${m.unit ? " " + m.unit : ""}`), document.createTextNode(" "), el("span", "dim", m.label));
       const td4 = el("td", "r mono", String(p.tests));
       const td5 = el("td", "r hide-sm"); const sp = el("div", "spark"); sp.append(sparkline(p.series, COLORS[i])); td5.append(sp);
-      tr.append(td1, td2, td3, td4, td5); tb.append(tr);
+      const td6 = el("td", "r");
+      const demo = el("button", "dbtn dbtn--go", "▶ Demo");
+      demo.type = "button";
+      demo.setAttribute("aria-label", `Open the ${shortTitle(p)} live demo`);
+      demo.addEventListener("click", (e) => { e.stopPropagation(); window.openDemo?.(p.slug); });
+      td6.append(demo);
+      tr.append(td1, td2, td3, td4, td5, td6); tb.append(tr);
     });
 
     const act = $("[data-activity]", v);
@@ -244,6 +250,7 @@
     $("[data-big-note]", v).textContent = m0.note || "";
     $("[data-title]", v).textContent = p.title;
     $("[data-tagline]", v).textContent = p.tagline;
+    $("[data-demo]", v).addEventListener("click", () => window.openDemo?.(p.slug));
     $("[data-src]", v).href = `${REPO}/tree/main/${p.folder}`;
     $("[data-report-link]", v).href = `${REPO}/blob/main/${p.folder}/results/REPORT.md`;
     p.stack.forEach((s) => $("[data-stack]", v).append(el("span", "chip", s)));

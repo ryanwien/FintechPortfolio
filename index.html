@@ -104,7 +104,7 @@
     <article class="card">
       <div class="card__head"><p class="card__label">Systems</p><span class="dim" data-sys-count></span></div>
       <div class="tbl-wrap"><table class="tbl tbl--systems" data-table>
-        <thead><tr><th>System</th><th class="hide-sm">Lane</th><th>Headline</th><th class="r">Tests</th><th class="r hide-sm">Trend</th></tr></thead>
+        <thead><tr><th>System</th><th class="hide-sm">Lane</th><th>Headline</th><th class="r">Tests</th><th class="r hide-sm">Trend</th><th class="r">Try it</th></tr></thead>
         <tbody></tbody>
       </table></div>
     </article>
@@ -134,7 +134,8 @@
       <p class="sub" data-tagline></p>
       <div class="chips" data-stack></div>
       <div class="card__actions">
-        <a class="btn btn--accent" data-src href="#">View source</a>
+        <button class="btn btn--accent" type="button" data-demo>▶ Live demo</button>
+        <a class="btn" data-src href="#">View source</a>
         <a class="btn" data-report-link href="#">REPORT.md</a>
       </div>
       <ul class="kv mt" data-facts></ul>
@@ -176,5 +177,6 @@
 <script src="assets/data.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
 <script src="assets/app.js"></script>
+<script src="assets/demos.js"></script>
 </body>
 </html>
