@@ -342,6 +342,7 @@
     else if (p) { frag = viewProject(p); t = p.title; }
     else { frag = viewOverview(); t = "Dashboard"; }
     main.replaceChildren(frag); title.textContent = t; document.title = `${t} — Ryan Wien`;
+    title.title = t; // full title on hover when the header truncates it
     redrawCharts(); // views are built detached, so charts only know their width once mounted
     window.scrollTo({ top: 0 });
   }
