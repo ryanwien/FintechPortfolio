@@ -62,6 +62,12 @@
     if (a >= 1) return v.toFixed(2);
     return v.toFixed(3);
   };
+  // x labels: integers as-is, long decimals to 3 significant figures, text untouched.
+  const fmtTick = (x) => {
+    const n = Number(x);
+    if (typeof x === "string" && !Number.isFinite(n)) return x;
+    return Number.isInteger(n) ? n.toLocaleString() : String(Number(n.toPrecision(3)));
+  };
   let gradSeq = 0;
 
   function sparkline(series, color) {
@@ -80,14 +86,19 @@
     host._series = series;
     host.append(el("p", "chart__name", series.name));
     const W = Math.max(280, Math.round(host.clientWidth)), H = W < 600 ? 200 : 260;
-    const L = 46, R = 10, T = 12, B = 26;
+    const R = 12, T = 12, B = 26;
     const ys = series.y.map(Number);
     const xsRaw = series.x && series.x.length === ys.length ? series.x : ys.map((_, i) => i + 1);
     const numeric = xsRaw.every((x) => Number.isFinite(Number(x)));
     const xs = numeric ? xsRaw.map(Number) : xsRaw.map((_, i) => i);
     const xlo = Math.min(...xs), xhi = Math.max(...xs);
     let lo = Math.min(...ys), hi = Math.max(...ys);
-    const pad = (hi - lo || Math.abs(hi) || 1) * 0.1; lo -= pad; hi += pad;
+    const pad = (hi - lo || Math.abs(hi) || 1) * 0.1;
+    // Never pad a non-negative series (rates, counts, money) below zero.
+    lo = lo >= 0 ? Math.max(0, lo - pad) : lo - pad; hi += pad;
+    const yTicks = [0, 1, 2, 3, 4].map((i) => lo + ((hi - lo) * i) / 4);
+    // Left gutter fits the widest y label (11px mono is ~6.7px per char) plus the 8px gap.
+    const L = Math.max(36, Math.ceil(Math.max(...yTicks.map((v) => fmt(v).length)) * 6.7) + 12);
     const X = (x) => L + ((x - xlo) / (xhi - xlo || 1)) * (W - L - R);
     const Y = (y) => T + (1 - (y - lo) / (hi - lo)) * (H - T - B);
     const color = getComputedStyle(root).getPropertyValue("--chart").trim() || "#4caf32";
@@ -97,15 +108,25 @@
     const g = mk("linearGradient", { id, x1: 0, x2: 0, y1: 0, y2: 1 });
     g.append(mk("stop", { offset: "0%", "stop-color": color, "stop-opacity": 0.35 }), mk("stop", { offset: "100%", "stop-color": color, "stop-opacity": 0 }));
     defs.append(g); svg.append(defs);
-    for (let i = 0; i <= 4; i++) {
-      const v = lo + ((hi - lo) * i) / 4, y = Y(v);
+    for (const v of yTicks) {
+      const y = Y(v);
       svg.append(mk("line", { x1: L, x2: W - R, y1: y, y2: y, class: "grid" }));
       const t = mk("text", { x: L - 8, y: y + 4, "text-anchor": "end" }); t.textContent = fmt(v); svg.append(t);
     }
-    const ticks = [0, Math.floor((xs.length - 1) / 2), xs.length - 1];
-    ticks.forEach((i, k) => {
-      const t = mk("text", { x: X(xs[i]), y: H - 8, "text-anchor": k === 0 ? "start" : k === 2 ? "end" : "middle" });
-      t.textContent = String(xsRaw[i]); svg.append(t);
+    // Ticks at the left edge, middle and right edge of the plot, using the data point nearest
+    // each spot (x may be uneven or descending). A tick too close to one already placed is
+    // dropped so labels never overlap.
+    const MIN_GAP = 90;
+    const placed = [];
+    [L, (L + W - R) / 2, W - R].forEach((target) => {
+      let best = 0;
+      for (let i = 1; i < xs.length; i++) if (Math.abs(X(xs[i]) - target) < Math.abs(X(xs[best]) - target)) best = i;
+      const px = X(xs[best]);
+      if (placed.some((q) => Math.abs(q - px) < MIN_GAP)) return;
+      placed.push(px);
+      const anchor = px <= L + 1 ? "start" : px >= W - R - 1 ? "end" : "middle";
+      const t = mk("text", { x: px, y: H - 8, "text-anchor": anchor });
+      t.textContent = fmtTick(xsRaw[best]); svg.append(t);
     });
     const d = ys.map((y, i) => `${i ? "L" : "M"}${X(xs[i]).toFixed(1)},${Y(y).toFixed(1)}`).join("");
     svg.append(mk("path", { d: `${d}L${X(xs[xs.length - 1]).toFixed(1)},${H - B}L${X(xs[0]).toFixed(1)},${H - B}Z`, fill: `url(#${id})` }));
@@ -286,8 +307,25 @@
     return v;
   }
 
+  // Redraw a chart whenever its own box changes width: window resizes, but also late font
+  // loads and grid reflows that move the layout without firing a window resize.
+  const chartWidths = new WeakMap();
+  const chartObserver = new ResizeObserver((entries) => {
+    for (const { target } of entries) {
+      const w = Math.round(target.clientWidth);
+      if (target._series && chartWidths.get(target) !== w) {
+        chartWidths.set(target, w);
+        lineChart(target, target._series);
+      }
+    }
+  });
   function redrawCharts() {
-    document.querySelectorAll(".chart").forEach((h) => { if (h._series) lineChart(h, h._series); });
+    document.querySelectorAll(".chart").forEach((h) => {
+      if (!h._series) return;
+      chartWidths.set(h, Math.round(h.clientWidth));
+      lineChart(h, h._series);
+      chartObserver.observe(h);
+    });
   }
 
   // ---------- router ----------
@@ -308,11 +346,6 @@
     window.scrollTo({ top: 0 });
   }
   window.addEventListener("hashchange", render);
-  let resizeTimer = 0;
-  window.addEventListener("resize", () => {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(redrawCharts, 150);
-  });
   render();
 
   // ---------- search ----------
