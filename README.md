@@ -50,7 +50,9 @@ are in [CONVENTIONS.md](./CONVENTIONS.md).
 ├── credit-risk/         03 · credit underwriting & model risk
 ├── matching-engine/     04 · limit order book + backtester
 ├── aml-monitoring/      05 · AML monitoring & case management
-├── index.html, assets/  dashboard front end (static, no build step)
+├── index.html           dashboard shell (views are <template>s, filled by JS)
+├── assets/js/           front end, no build step: util, catalog, charts, sfx, app, demos
+├── assets/data.js       generated: every project's results bundled for the dashboard
 ├── tools/build_site.py  bundles every project's results/ into assets/data.js
 ├── ruff.toml            one lint + format standard for all projects
 └── .github/workflows/   CI: lint → test matrix → end-to-end runs

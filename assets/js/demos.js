@@ -1,75 +1,22 @@
-/* Interactive in-browser demos, one per system. Each is a small model of the real
-   project's core mechanism so a visitor can poke it; every published metric still
-   comes from the Python runs in each project's results/. */
+/* Interactive in-browser demos, one per system, exposed as window.openDemo(slug).
+   Each is a small model of the real project's core mechanism so a visitor can poke
+   it; every published metric still comes from the Python runs in each project's
+   results/. Depends on util.js (UI) and sfx.js (SFX). */
 (() => {
   "use strict";
-  const $ = (sel, root = document) => root.querySelector(sel);
-  const el = (tag, cls, text) => {
-    const n = document.createElement(tag);
-    if (cls) n.className = cls;
-    if (text != null) n.textContent = text;
-    return n;
-  };
-  const usd = (cents) => (cents / 100).toLocaleString(undefined, { style: "currency", currency: "USD" });
-
-  // ---------- sound effects ----------
-  // All cues are synthesized live with the Web Audio API — no audio files, nothing
-  // licensed, nothing to attribute. They only ever play in response to a click.
-  let audioCtx = null, muted = false;
-  try { muted = localStorage.getItem("demo-muted") === "1"; } catch (_) { /* private mode */ }
-  function tone(freq, ms, { type = "sine", gain = 0.25, at = 0, slide = 0 } = {}) {
-    if (muted) return;
-    try {
-      audioCtx ||= new (window.AudioContext || window.webkitAudioContext)();
-      // Browsers hand out suspended contexts outside (or sometimes even inside) a
-      // gesture; resuming on every cue keeps the first click audible.
-      if (audioCtx.state === "suspended") audioCtx.resume();
-      const t0 = audioCtx.currentTime + at;
-      const osc = audioCtx.createOscillator();
-      const g = audioCtx.createGain();
-      osc.type = type;
-      osc.frequency.setValueAtTime(freq, t0);
-      if (slide) osc.frequency.exponentialRampToValueAtTime(Math.max(40, freq + slide), t0 + ms / 1000);
-      g.gain.setValueAtTime(0.0001, t0);
-      g.gain.exponentialRampToValueAtTime(gain, t0 + 0.012);
-      g.gain.exponentialRampToValueAtTime(0.0001, t0 + ms / 1000);
-      osc.connect(g).connect(audioCtx.destination);
-      osc.start(t0);
-      osc.stop(t0 + ms / 1000 + 0.02);
-    } catch (_) { /* no audio device — demos work silently */ }
-  }
-  const sfx = {
-    open: () => tone(520, 120, { type: "triangle", gain: 0.18 }),
-    good: () => { tone(660, 120, { type: "triangle" }); tone(990, 170, { type: "triangle", at: 0.08 }); },
-    bad: () => tone(200, 260, { type: "square", gain: 0.16, slide: -70 }),
-    tick: () => tone(1250, 55, { type: "square", gain: 0.1 }),
-    warn: () => tone(430, 200, { type: "sawtooth", gain: 0.14, slide: -60 }),
-    alarm: () => { tone(880, 150, { type: "square", gain: 0.16 }); tone(880, 150, { type: "square", gain: 0.16, at: 0.2 }); },
-  };
-  function muteButton() {
-    const b = el("button", "demo__close demo__mute", muted ? "🔇" : "🔊");
-    b.type = "button";
-    b.setAttribute("aria-label", muted ? "Unmute demo sounds" : "Mute demo sounds");
-    b.setAttribute("aria-pressed", String(muted));
-    b.addEventListener("click", () => {
-      muted = !muted;
-      try { localStorage.setItem("demo-muted", muted ? "1" : "0"); } catch (_) { /* ignore */ }
-      b.textContent = muted ? "🔇" : "🔊";
-      b.setAttribute("aria-pressed", String(muted));
-      b.setAttribute("aria-label", muted ? "Unmute demo sounds" : "Mute demo sounds");
-      if (!muted) sfx.open();
-    });
-    return b;
-  }
+  const { el, usd } = window.UI;
+  const sfx = window.SFX;
 
   // ---------- modal plumbing ----------
   let overlay = null, lastFocus = null, teardown = null;
+
   function closeDemo() {
     if (teardown) { teardown(); teardown = null; }
     overlay?.remove(); overlay = null;
     document.body.style.overflow = "";
     lastFocus?.focus?.();
   }
+
   function openDemo(slug) {
     const build = DEMOS[slug];
     if (!build) return;
@@ -87,27 +34,29 @@
     const x = el("button", "demo__close", "✕");
     x.setAttribute("aria-label", "Close demo");
     x.addEventListener("click", closeDemo);
-    head.append(ttl, muteButton(), x);
+    head.append(ttl, sfx.muteButton(), x);
     const body = el("div", "demo__body");
     box.append(head, body, el("p", "demo__note",
       "Interactive model running in your browser to show the mechanism. The metrics on the cards come from the real Python system in this repo."));
     overlay.append(box);
     document.body.append(overlay);
     document.body.style.overflow = "hidden";
-    teardown = build.mount(body) || null;
+    teardown = build.mount(body) || null; // a demo may return a cleanup function
     sfx.open();
     x.focus();
   }
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && overlay) closeDemo(); });
   window.openDemo = openDemo;
 
-  // ---------- shared widgets ----------
+  // ---------- widgets shared by the demos ----------
   function btn(label, cls, fn) {
     const b = el("button", `dbtn${cls ? " " + cls : ""}`, label);
     b.type = "button";
     b.addEventListener("click", fn);
     return b;
   }
+
+  /** Scrolling event log; returns [element, addLine]. */
   function logPane(ariaLabel) {
     const pane = el("div", "dlog");
     pane.setAttribute("role", "log");
@@ -118,6 +67,8 @@
     };
     return [pane, add];
   }
+
+  /** Labeled range input with a live formatted value. */
   function slider(label, min, max, value, step, fmt) {
     const wrap = el("label", "dctl");
     const out = el("b", null, fmt(value));
@@ -128,6 +79,8 @@
     wrap.append(top, inp);
     return { wrap, inp, out, get: () => Number(inp.value), fmt };
   }
+
+  /** Tiny seeded RNG (mulberry32) so a demo plays out the same way every reload. */
   const mulberry = (seed) => () => {
     seed = (seed + 0x6d2b79f5) | 0;
     let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
@@ -137,14 +90,17 @@
 
   const DEMOS = {};
 
-  // ---------- 01 · ledger ----------
+  // ---------- 01 · ledger: balanced entries, idempotent retries, overdraft rejection ----------
   DEMOS.ledger = {
     title: "Double-entry ledger",
     sub: "Every move is a balanced journal entry. Retries replay, overdrafts bounce, and the books always sum to zero.",
     mount(body) {
-      const wallets = { "Wallet A": 5000, "Wallet B": 2000 }; // cents
-      const seen = new Map(); // idempotency key -> response line
-      let seq = 0, lastKey = null, lastArgs = null;
+      const OPENING = { "Wallet A": 5000, "Wallet B": 2000 }; // cents
+      const OVERDRAW_CENTS = 99900;
+      const wallets = { ...OPENING };
+      const seen = new Map(); // idempotency key -> outcome
+      let seq = 0, lastKey = null, lastAmount = null;
+
       const bal = el("div", "dgrid2");
       const cards = {};
       for (const w of Object.keys(wallets)) {
@@ -158,6 +114,7 @@
         for (const w of Object.keys(wallets)) cards[w].textContent = usd(wallets[w]);
         trial.textContent = `trial balance: debits − credits = ${usd(0)} ✓ · money in system: ${usd(wallets["Wallet A"] + wallets["Wallet B"])}`;
       };
+
       function transfer(amount, key) {
         if (seen.has(key)) { sfx.tick(); add(`↻ ${key} replayed — stored response returned, nothing posted`, "is-dim"); return; }
         if (wallets["Wallet A"] < amount) {
@@ -172,19 +129,20 @@
         add(`✓ entry ${++seq} posted — DR Wallet A ${usd(amount)} · CR Wallet B ${usd(amount)}  [${key}]`, "is-good");
         paint();
       }
+
       const amt = slider("Amount", 100, 9000, 1500, 100, (v) => usd(v));
       amt.inp.addEventListener("input", () => { amt.out.textContent = usd(amt.get()); });
       const row = el("div", "dbtns");
       row.append(
         btn("Send A → B", "dbtn--go", () => {
-          lastKey = `req-${(Math.random() * 1e6 | 0).toString(36)}`; lastArgs = amt.get();
-          transfer(lastArgs, lastKey);
+          lastKey = `req-${(Math.random() * 1e6 | 0).toString(36)}`; lastAmount = amt.get();
+          transfer(lastAmount, lastKey);
         }),
         btn("Retry the same request", null, () => {
           if (!lastKey) { add("send something first, then retry it", "is-dim"); return; }
-          transfer(lastArgs, lastKey);
+          transfer(lastAmount, lastKey);
         }),
-        btn("Try to overdraw ($999)", null, () => transfer(99900, `od-${++seq}-${(Math.random() * 1e4 | 0)}`)),
+        btn("Try to overdraw ($999)", null, () => transfer(OVERDRAW_CENTS, `od-${++seq}-${(Math.random() * 1e4 | 0)}`)),
       );
       body.append(bal, amt.wrap, row, pane, trial);
       add("ledger ready — two wallets funded by an opening entry");
@@ -192,11 +150,13 @@
     },
   };
 
-  // ---------- 02 · fraud ----------
+  // ---------- 02 · fraud: risk score, decision bands, reason codes ----------
   DEMOS.fraud = {
     title: "Fraud scorer",
     sub: "Slide a transaction toward risk and watch the score, the decision band and the reason codes move.",
     mount(body) {
+      const APPROVE_BELOW = 0.18, DECLINE_AT = 0.58; // decision bands on the 0..1 score
+      const BIAS = -3.2; // keeps everyday inputs in approve territory
       const ctls = [
         slider("Amount", 1, 3000, 60, 1, (v) => usd(v * 100)),
         slider("Distance from home", 0, 9000, 5, 5, (v) => `${v} km`),
@@ -210,6 +170,8 @@
       const fill = el("i"); gauge.append(fill);
       const verdict = el("div", "dverdict");
       const reasons = el("ul", "dreasons");
+
+      // name -> logit contribution, each from the current control values
       const FEATURES = [
         ["high amount vs typical spend", () => Math.max(0, Math.log10(ctls[0].get() / 40)) * 1.6],
         ["far from home geography", () => Math.min(1, ctls[1].get() / 2500) * 2.2],
@@ -217,21 +179,23 @@
         ["unusual hour", () => { const h = ctls[3].get(); return (h >= 1 && h <= 5 ? 1 : 0) * 1.1; }],
         ["new device", () => (devInp.checked ? 1.4 : 0)],
       ];
+
       function score() {
         const parts = FEATURES.map(([name, f]) => [name, f()]).filter(([, v]) => v > 0.01);
-        const z = parts.reduce((a, [, v]) => a + v, 0) - 3.2;
+        const z = parts.reduce((a, [, v]) => a + v, 0) + BIAS;
         const p = 1 / (1 + Math.exp(-z));
         fill.style.width = `${(p * 100).toFixed(1)}%`;
-        fill.className = p < 0.18 ? "ok" : p < 0.58 ? "warn" : "bad";
-        const d = p < 0.18 ? ["APPROVE", "ok"] : p < 0.58 ? ["REVIEW — route to an analyst", "warn"] : ["DECLINE", "bad"];
+        fill.className = p < APPROVE_BELOW ? "ok" : p < DECLINE_AT ? "warn" : "bad";
+        const d = p < APPROVE_BELOW ? ["APPROVE", "ok"] : p < DECLINE_AT ? ["REVIEW — route to an analyst", "warn"] : ["DECLINE", "bad"];
         if (verdict.dataset.band && verdict.dataset.band !== d[1]) ({ ok: sfx.good, warn: sfx.warn, bad: sfx.bad })[d[1]]();
         verdict.dataset.band = d[1];
         verdict.textContent = `score ${p.toFixed(3)} → ${d[0]}`;
         verdict.className = `dverdict is-${d[1]}`;
-        reasons.replaceChildren(...(p < 0.18
+        reasons.replaceChildren(...(p < APPROVE_BELOW
           ? [el("li", "is-dim", "no adverse reason codes on approvals")]
           : parts.sort((a, b) => b[1] - a[1]).slice(0, 3).map(([name, v]) => el("li", null, `${name} (+${v.toFixed(2)})`))));
       }
+
       ctls.forEach((c) => c.inp.addEventListener("input", () => { c.out.textContent = c.fmt(c.get()); score(); }));
       devInp.addEventListener("change", score);
       const presets = el("div", "dbtns");
@@ -246,29 +210,31 @@
     },
   };
 
-  // ---------- 03 · credit ----------
+  // ---------- 03 · credit: points scorecard with adverse-action reasons ----------
   DEMOS.credit = {
     title: "Credit scorecard",
     sub: "A points-based scorecard: every factor adds or removes points, and a decline lists exactly why — the Reg B adverse-action reasons.",
     mount(body) {
-      const BINS = {
+      const BASE = 540, CUTOFF = 555, TOP_REASONS = 4;
+      // factor -> control, score bins ([upper edge, points]) and Reg B reason statement
+      const FACTORS = {
         "Debt-to-income": { ctl: slider("Debt-to-income", 0, 65, 28, 1, (v) => `${v}%`), bins: [[20, 42], [35, 18], [50, -8], [Infinity, -30]], reason: "Debt-to-income ratio too high" },
         "Card utilization": { ctl: slider("Card utilization", 0, 100, 30, 1, (v) => `${v}%`), bins: [[10, 38], [30, 22], [60, -6], [90, -26], [Infinity, -44]], reason: "Proportion of revolving balances to credit limits too high" },
         "Late payments (24 mo)": { ctl: slider("Late payments (24 mo)", 0, 8, 0, 1, (v) => `${v}`), bins: [[0, 34], [1, 2], [2, -24], [Infinity, -52]], reason: "Delinquency on accounts" },
         "Credit history": { ctl: slider("Credit history", 0, 30, 7, 1, (v) => `${v} yrs`), bins: [[2, -28], [5, -8], [12, 14], [Infinity, 30]], reason: "Length of credit history insufficient" },
         "Hard inquiries (12 mo)": { ctl: slider("Hard inquiries (12 mo)", 0, 10, 1, 1, (v) => `${v}`), bins: [[0, 16], [2, 6], [4, -12], [Infinity, -28]], reason: "Too many recent credit inquiries" },
       };
-      const CUTOFF = 555, BASE = 540;
       const tbl = el("table", "dtable");
       tbl.innerHTML = "<thead><tr><th>Factor</th><th>Value</th><th>Points</th></tr></thead>";
       const tb = el("tbody"); tbl.append(tb);
       const verdict = el("div", "dverdict");
       const reasons = el("ul", "dreasons");
+
       function scoreIt() {
         tb.replaceChildren();
         let total = BASE;
         const rows = [];
-        for (const [name, cfg] of Object.entries(BINS)) {
+        for (const [name, cfg] of Object.entries(FACTORS)) {
           const v = cfg.ctl.get();
           const pts = cfg.bins.find(([edge]) => v <= edge)[1];
           const best = Math.max(...cfg.bins.map(([, p]) => p));
@@ -279,7 +245,7 @@
           tb.append(tr);
         }
         const foot = el("tr", "dtable__total");
-        foot.append(el("td", null, "Score (base 540)"), el("td"), el("td", "num", String(total)));
+        foot.append(el("td", null, `Score (base ${BASE})`), el("td"), el("td", "num", String(total)));
         tb.append(foot);
         const band = total >= CUTOFF ? "ok" : "bad";
         if (verdict.dataset.band && verdict.dataset.band !== band) (band === "ok" ? sfx.good : sfx.bad)();
@@ -291,11 +257,12 @@
         } else {
           verdict.textContent = `${total} < cutoff ${CUTOFF} → DECLINED — principal reasons:`;
           verdict.className = "dverdict is-bad";
-          reasons.replaceChildren(...rows.sort((a, b) => b.lost - a.lost).slice(0, 4)
+          reasons.replaceChildren(...rows.sort((a, b) => b.lost - a.lost).slice(0, TOP_REASONS)
             .map((r, i) => el("li", null, `${i + 1}. ${r.reason} (−${r.lost} pts vs best)`)));
         }
       }
-      for (const cfg of Object.values(BINS)) {
+
+      for (const cfg of Object.values(FACTORS)) {
         cfg.ctl.inp.addEventListener("input", () => { cfg.ctl.out.textContent = cfg.ctl.fmt(cfg.ctl.get()); scoreIt(); });
         body.append(cfg.ctl.wrap);
       }
@@ -304,28 +271,31 @@
     },
   };
 
-  // ---------- 04 · exchange ----------
+  // ---------- 04 · exchange: price-time priority order book ----------
   DEMOS.exchange = {
     title: "Matching engine",
     sub: "A live limit order book with price-time priority. Fire orders at it and watch fills sweep the levels.",
     mount(body) {
-      const rnd = mulberry(42);
-      const TICK = 1; // cents
+      const SEED = 42, TICK = 1, MID = 10000; // prices in cents
+      const DEPTH_SHOWN = 6, MIN_LEVELS = 8, AUTO_MS = 1800;
+      const rnd = mulberry(SEED);
       const book = { bid: new Map(), ask: new Map() };
-      let mid = 10000, lastPx = null, lastUp = null, fills = 0, traded = 0;
+      let lastPx = null, lastUp = null, fills = 0, traded = 0;
       for (let k = 1; k <= 10; k++) {
-        book.bid.set(mid - k * TICK, 100 + ((rnd() * 300) | 0));
-        book.ask.set(mid + k * TICK, 100 + ((rnd() * 300) | 0));
+        book.bid.set(MID - k * TICK, 100 + ((rnd() * 300) | 0));
+        book.ask.set(MID + k * TICK, 100 + ((rnd() * 300) | 0));
       }
       const best = (s) => (s === "bid" ? Math.max(...book.bid.keys()) : Math.min(...book.ask.keys()));
+
       const host = el("div", "dbook");
       const asksEl = el("div", "dbook__side"), spreadEl = el("div", "dbook__mid"), bidsEl = el("div", "dbook__side");
       host.append(asksEl, spreadEl, bidsEl);
       const [pane, add] = logPane("Executions");
       const stats = el("div", "dtrial");
+
       function render() {
         const paint = (hostEl, side) => {
-          const ks = [...book[side].keys()].sort((a, b) => (side === "bid" ? b - a : a - b)).slice(0, 6);
+          const ks = [...book[side].keys()].sort((a, b) => (side === "bid" ? b - a : a - b)).slice(0, DEPTH_SHOWN);
           const rows = side === "ask" ? ks.reverse() : ks;
           const mx = Math.max(...ks.map((k) => book[side].get(k)), 1);
           hostEl.replaceChildren(...rows.map((px) => {
@@ -341,6 +311,8 @@
         spreadEl.textContent = `spread ${usd(ba - bb)}${lastPx ? ` · last ${usd(lastPx)} ${lastUp ? "▲" : "▼"}` : ""}`;
         stats.textContent = `${fills} fills · ${traded.toLocaleString()} shares traded · price-time priority, FIFO within each level`;
       }
+
+      /** Marketable order: sweep the opposite side best-first until filled. */
       function market(buy, qty) {
         const side = buy ? "ask" : "bid";
         let left = qty;
@@ -353,6 +325,8 @@
         }
         replenish(); render();
       }
+
+      /** Passive order joins a queue near the touch without crossing the spread. */
       function passive() {
         const side = rnd() < 0.5 ? "bid" : "ask";
         const px = side === "bid" ? best("bid") + (rnd() < 0.3 ? TICK : 0) : best("ask") - (rnd() < 0.3 ? TICK : 0);
@@ -361,14 +335,17 @@
         add(`passive ${side} ${usd(safe)} joins the queue (no trade — post, don't cross)`, "is-dim");
         render();
       }
+
+      /** Keep the far end of the book populated so sweeps never empty a side. */
       function replenish() {
         for (const s of ["bid", "ask"]) {
-          while (book[s].size < 8) {
+          while (book[s].size < MIN_LEVELS) {
             const edge = s === "bid" ? Math.min(...book[s].keys()) - TICK : Math.max(...book[s].keys()) + TICK;
             book[s].set(edge, 100 + ((rnd() * 300) | 0));
           }
         }
       }
+
       const row = el("div", "dbtns");
       row.append(
         btn("Market BUY 300", "dbtn--go", () => market(true, 300)),
@@ -378,24 +355,31 @@
       body.append(host, row, pane, stats);
       add("book seeded · deterministic RNG, same session every reload");
       render();
-      const timer = setInterval(() => { rnd() < 0.55 ? passive() : market(rnd() < 0.5, 60 + ((rnd() * 200) | 0)); }, 1800);
-      return () => clearInterval(timer);
+      const timer = setInterval(() => { rnd() < 0.55 ? passive() : market(rnd() < 0.5, 60 + ((rnd() * 200) | 0)); }, AUTO_MS);
+      return () => clearInterval(timer); // modal close stops the background flow
     },
   };
 
-  // ---------- 05 · aml ----------
+  // ---------- 05 · aml: structuring rule + tamper-evident audit chain ----------
   DEMOS.aml = {
     title: "AML monitor",
     sub: "Inject activity, run the rules, and try to tamper with the audit log — the hash chain catches it.",
     mount(body) {
+      // Structuring rule: >= 3 cash deposits in the just-under-$10k band.
+      const BAND_LOW = 800000, BAND_HIGH = 1000000, MIN_DEPOSITS = 3; // cents
+      const CHAIN_SEED = 7;
       const txns = [];
       const audit = [];
-      let chain = 7;
+      let chain = CHAIN_SEED;
+      // Rolling 32-bit hash: each entry's digest depends on everything before it,
+      // so editing one line breaks every digest from that point on.
       const hash = (s) => { for (const ch of s) chain = (Math.imul(chain, 31) + ch.charCodeAt(0)) >>> 0; return chain.toString(16).padStart(8, "0").slice(-8); };
+
       const [tPane, tAdd] = logPane("Transactions");
       const [aPane, aAdd] = logPane("Audit trail");
       const verdict = el("div", "dverdict");
       let day = 1;
+
       function record(kind, amountC, note) {
         txns.push({ day, kind, amountC });
         tAdd(`day ${day} · ${kind} ${usd(amountC)} ${note || ""}`);
@@ -406,9 +390,10 @@
         audit.push({ text, h });
         aAdd(`${h}  ${text}`);
       }
+
       function runRules() {
-        const cash = txns.filter((t) => t.kind === "cash deposit" && t.amountC >= 800000 && t.amountC < 1000000);
-        if (cash.length >= 3) {
+        const cash = txns.filter((t) => t.kind === "cash deposit" && t.amountC >= BAND_LOW && t.amountC < BAND_HIGH);
+        if (cash.length >= MIN_DEPOSITS) {
           const total = cash.reduce((a, t) => a + t.amountC, 0);
           sfx.alarm();
           verdict.textContent = `ALERT: structuring — ${cash.length} cash deposits just under $10,000 (total ${usd(total)}) → case opened, SAR narrative drafted`;
@@ -421,6 +406,7 @@
           auditLine(`rules ran clean over ${txns.length} txns`);
         }
       }
+
       function tamper() {
         if (!audit.length) { verdict.textContent = "Nothing in the audit log to tamper with yet."; verdict.className = "dverdict"; return; }
         audit[0].text = audit[0].text.replace(/\d/, "9") + " (edited)";
@@ -429,8 +415,9 @@
         verdict.textContent = "Entry 1 silently edited… now verify the chain.";
         verdict.className = "dverdict is-warn";
       }
+
       function verify() {
-        chain = 7;
+        chain = CHAIN_SEED;
         for (let i = 0; i < audit.length; i++) {
           if (hash(audit[i].text) !== audit[i].h) {
             sfx.alarm();
@@ -443,6 +430,7 @@
         verdict.textContent = `audit chain verifies: ${audit.length} entries intact`;
         verdict.className = "dverdict is-ok";
       }
+
       const row1 = el("div", "dbtns");
       row1.append(
         btn("Inject structuring", "dbtn--go", () => {
