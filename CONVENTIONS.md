@@ -26,6 +26,9 @@ These apply to all five projects. CI enforces everything marked *(CI)*.
 - Every module opens with a docstring saying what it owns and which invariants it keeps.
 - Specific exception types ending in `Error`; no bare `except`, no silent swallowing.
 - Entry points orchestrate; rendering (Markdown, JSON for the site) lives in its own module.
+- Commit messages: plain imperative subject, body explaining why. No attribution trailers or
+  tool tags of any kind. A behavior change needs a test; a bug fix needs a test that fails
+  without it.
 
 ## Money and data
 

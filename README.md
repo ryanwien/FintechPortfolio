@@ -69,7 +69,7 @@ Open `credit-risk/results/REPORT.md`. Every project works the same way: `pip ins
 
 Prefer zero setup? The [live dashboard](https://ryanwien.github.io/FintechPortfolio/) has
 every system's results and an interactive demo of each. To run all five systems, tests and
-lint in one go, see [CONTRIBUTING.md](./CONTRIBUTING.md).
+lint in one go, see [Contributing](#-contributing).
 
 ## 📖 Usage
 
@@ -177,13 +177,20 @@ ruff check . && ruff format --check .             # one standard, repo-wide
 ```
 
 Then in any project: `pytest` (306 tests across the five), and `python -m $(cat .run)` to
-regenerate its `results/` end to end.
+regenerate its `results/` end to end. Or everything at once:
+
+```bash
+for p in ledger fraud-scoring credit-risk matching-engine aml-monitoring; do
+  (cd $p && ruff check . && pytest -q && python -m $(cat .run))
+done
+python tools/build_site.py                        # refresh the dashboard data
+```
 
 ### Submit a pull request
 
 Fork, branch, and open a PR. Two rules above all: never hand-edit anything in `results/`
 or `assets/data.js` (those files are written by the code), and a behavior change needs a
-test. The full ground rules are in [CONTRIBUTING.md](./CONTRIBUTING.md); security reports
+test. The full ground rules are in [CONVENTIONS.md](./CONVENTIONS.md); security reports
 go through [SECURITY.md](./SECURITY.md), not public issues.
 
 ## Stack
