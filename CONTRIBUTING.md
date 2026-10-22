@@ -33,6 +33,16 @@ pytest                                  # warnings are errors
 python -m "$(cat .run)"                 # regenerates results/ end to end
 ```
 
+Or run all five systems, their tests and the lint in one go from the repo root:
+
+```bash
+for p in ledger fraud-scoring credit-risk matching-engine aml-monitoring; do
+  pip install -e $p
+  (cd $p && ruff check . && pytest -q && python -m $(cat .run))
+done
+python tools/build_site.py              # refresh the dashboard data
+```
+
 Ground rules (the long form is in [CONVENTIONS.md](./CONVENTIONS.md)):
 
 - **Never hand-edit anything in `results/` or `assets/data.js`.** Those files are written
