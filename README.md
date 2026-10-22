@@ -37,10 +37,12 @@ way the production version would be, scaled down in size but not in rigor. In pa
 | 04 | [`matching-engine/`](./matching-engine) | Trading & market infrastructure | Price-time priority limit order book, deterministic replay, property-tested invariants, event-driven backtester with fees and slippage |
 | 05 | [`aml-monitoring/`](./aml-monitoring) | Financial crime & compliance | Typology rules engine, graph analytics for mule rings and round-tripping, case management with a hash-chained audit trail and SAR narratives |
 
-## Quickstart
+## Installation and usage
 
-Python 3.12+ and git. No API keys, no services, no network: everything runs locally on
-deterministic synthetic data.
+### Installation
+
+Everything requires Python 3.12+ and nothing else: no API keys, no services, no network.
+Every system runs locally on deterministic synthetic data.
 
 ```bash
 git clone https://github.com/ryanwien/FintechPortfolio.git
@@ -49,7 +51,9 @@ python -m venv .venv && .venv/Scripts/activate    # or: source .venv/bin/activat
 pip install -r requirements.txt
 ```
 
-Run one system end to end (the credit model is the fastest, about 5 seconds):
+### Usage
+
+To run one system end to end (the credit model is the fastest, about 5 seconds):
 
 ```bash
 pip install -e credit-risk
@@ -58,9 +62,22 @@ python -m credit.run      # trains, validates, writes results/ including the mod
 pytest                    # 63 tests
 ```
 
-Open `credit-risk/results/REPORT.md` for the run you just produced, or skip local setup
-entirely: the [live dashboard](https://ryanwien.github.io/FintechPortfolio/) has every
-system's results and an interactive demo of each.
+Open `credit-risk/results/REPORT.md` for the run you just produced. Each of the five
+projects works the same way: `pip install -e <project>`, then `python -m` the module named
+in its `.run` file regenerates everything in its `results/`.
+
+To run all five systems, their tests and the lint, then refresh the dashboard data:
+
+```bash
+for p in ledger fraud-scoring credit-risk matching-engine aml-monitoring; do
+  pip install -e $p
+  (cd $p && ruff check . && pytest -q && python -m $(cat .run))
+done
+python tools/build_site.py
+```
+
+To skip local setup entirely: the [live dashboard](https://ryanwien.github.io/FintechPortfolio/)
+has every system's results and an interactive demo of each.
 
 ## Principles
 
@@ -72,18 +89,6 @@ system's results and an interactive demo of each.
   build next.
 - **Reproducible.** Deterministic seeds, synthetic data generated in code, no API keys, no
   network. One shared virtualenv, one command per project.
-
-## Run everything
-
-From the repo root, after the Quickstart setup:
-
-```bash
-for p in ledger fraud-scoring credit-risk matching-engine aml-monitoring; do
-  pip install -e $p
-  (cd $p && ruff check . && pytest -q && python -m $(cat .run))
-done
-python tools/build_site.py                           # refresh the dashboard data
-```
 
 CI lints and format-checks the whole repo with one shared `ruff.toml`, tests all five projects
 on Python 3.12, 3.13 and 3.14, and runs each project end to end on every push. Repo-wide rules
