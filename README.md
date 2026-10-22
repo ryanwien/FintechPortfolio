@@ -37,6 +37,31 @@ way the production version would be, scaled down in size but not in rigor. In pa
 | 04 | [`matching-engine/`](./matching-engine) | Trading & market infrastructure | Price-time priority limit order book, deterministic replay, property-tested invariants, event-driven backtester with fees and slippage |
 | 05 | [`aml-monitoring/`](./aml-monitoring) | Financial crime & compliance | Typology rules engine, graph analytics for mule rings and round-tripping, case management with a hash-chained audit trail and SAR narratives |
 
+## Quickstart
+
+Python 3.12+ and git. No API keys, no services, no network: everything runs locally on
+deterministic synthetic data.
+
+```bash
+git clone https://github.com/ryanwien/FintechPortfolio.git
+cd FintechPortfolio
+python -m venv .venv && .venv/Scripts/activate    # or: source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Run one system end to end (the credit model is the fastest, about 5 seconds):
+
+```bash
+pip install -e credit-risk
+cd credit-risk
+python -m credit.run      # trains, validates, writes results/ including the model card
+pytest                    # 63 tests
+```
+
+Open `credit-risk/results/REPORT.md` for the run you just produced, or skip local setup
+entirely: the [live dashboard](https://ryanwien.github.io/FintechPortfolio/) has every
+system's results and an interactive demo of each.
+
 ## Principles
 
 - **Money is never a float.** Integer minor units or `Decimal`, everywhere.
@@ -50,9 +75,9 @@ way the production version would be, scaled down in size but not in rigor. In pa
 
 ## Run everything
 
+From the repo root, after the Quickstart setup:
+
 ```bash
-python -m venv .venv && .venv/Scripts/activate      # or source .venv/bin/activate
-pip install -r requirements.txt
 for p in ledger fraud-scoring credit-risk matching-engine aml-monitoring; do
   pip install -e $p
   (cd $p && ruff check . && pytest -q && python -m $(cat .run))
