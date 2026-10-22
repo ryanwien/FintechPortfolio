@@ -155,6 +155,37 @@ are in [CONVENTIONS.md](./CONVENTIONS.md).
 └── .github/workflows/   CI: lint → test matrix → end-to-end runs
 ```
 
+## 🤝 Contributing
+
+Want to pull it down and play with it? The whole repo works offline.
+
+### Clone and set up
+
+```bash
+git clone https://github.com/ryanwien/FintechPortfolio.git
+cd FintechPortfolio
+python -m venv .venv && .venv/Scripts/activate    # or: source .venv/bin/activate
+pip install -r requirements.txt
+pip install -e ledger -e fraud-scoring -e credit-risk -e matching-engine -e aml-monitoring
+pre-commit install                                # optional: lint and format on commit
+```
+
+### Run the checks CI runs
+
+```bash
+ruff check . && ruff format --check .             # one standard, repo-wide
+```
+
+Then in any project: `pytest` (306 tests across the five), and `python -m $(cat .run)` to
+regenerate its `results/` end to end.
+
+### Submit a pull request
+
+Fork, branch, and open a PR. Two rules above all: never hand-edit anything in `results/`
+or `assets/data.js` (those files are written by the code), and a behavior change needs a
+test. The full ground rules are in [CONTRIBUTING.md](./CONTRIBUTING.md); security reports
+go through [SECURITY.md](./SECURITY.md), not public issues.
+
 ## Stack
 
 Python · FastAPI · scikit-learn · pandas · NumPy · SQLite · networkx · Hypothesis · pytest · ruff · GitHub Actions
