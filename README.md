@@ -71,6 +71,58 @@ Prefer zero setup? The [live dashboard](https://ryanwien.github.io/FintechPortfo
 every system's results and an interactive demo of each. To run all five systems, tests and
 lint in one go, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
+## 📖 Usage
+
+Each project installs with `pip install -e <project>` and is driven with `python -m`,
+always from inside the project folder. Entry points:
+
+| Command | What it does |
+|---|---|
+| `python -m ledger.bench` | Benchmarks the ledger and regenerates its `results/` |
+| `python -m ledger.api` | Serves the payments API on `127.0.0.1:8000` (docs at `/docs`) |
+| `python -m fraud.run` | Simulates, trains, evaluates and replays the fraud scorer |
+| `python -m fraud.api` | Serves `POST /score` using the model `fraud.run` trained |
+| `python -m credit.run` | Builds, validates and documents the credit scorecard |
+| `python -m exchange.run` | Engine benchmark plus all backtests |
+| `python -m exchange.bench` | Benchmark only: `--orders` (default 300000), `--seed` |
+| `python -m aml.run` | Full monitoring pipeline: `--seed`, `--customers`, `--config`, `--out` |
+
+Dashboard data and the recruiter PDF rebuild from whatever the runs produced:
+
+```bash
+python tools/build_site.py        # bundles every results/ into assets/data.js
+python tools/build_onepager.py    # renders RyanWien-Fintech-Portfolio.pdf
+```
+
+## Examples
+
+Take a payment through the ledger API, then retry it with the same idempotency key
+(the retry replays the stored response instead of charging twice):
+
+```bash
+python -m ledger.api &            # database at $LEDGER_DB, default ledger.db
+curl -s -X POST localhost:8000/v1/payments   -H 'Content-Type: application/json' -H 'Idempotency-Key: order-1042'   -d '{"source_account_id":"...","destination_account_id":"...","amount":1250,"currency":"USD","capture":false}'
+```
+
+Score a transaction and ask for the computed features back:
+
+```bash
+python -m fraud.api &
+curl -s -X POST 'localhost:8000/score?explain=always&debug=true'   -H 'content-type: application/json'   -d '{"txn_id":1,"ts":23400000,"customer_id":42,"merchant_id":7,"mcc":5732,
+       "amount_cents":189900,"lat":51.51,"lon":-0.13,"device_id":1234567,"card_present":false}'
+```
+
+`explain` takes `always`, `adverse` (default: reason codes only on review and decline) or
+`never`; `debug=true` echoes every feature value the model saw.
+
+Retune the AML monitor without touching code: thresholds live in versioned config, and
+every alert carries the config fingerprint it was raised under:
+
+```bash
+echo '{"structuring": {"band_low_cents": 700000}, "scoring": {"case_line": 50}}' > overrides.json
+python -m aml.run --config overrides.json --customers 8000 --seed 7
+```
+
 ## Principles
 
 - **Money is never a float.** Integer minor units or `Decimal`, everywhere.
