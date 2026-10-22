@@ -145,7 +145,7 @@ below). Latency rises with queue depth, but it rises predictably.
 - Matching took 9.42 ms.
 
 **Stress case.** This run used four times the break rate. 35% of bank memos lost their
-reference, and those lines settled 0–3 days late. Precision fell to **0.5394** and
+reference, and those lines settled 0 to 3 days late. Precision fell to **0.5394** and
 recall to **0.7008**:
 
 - A reference-less line that settled outside the 1-day tolerance is a real timing break.
@@ -195,7 +195,7 @@ recall to **0.7008**:
   - every balance equals an independent model;
   - rejected operations leave every balance unchanged.
 - Disabling the overdraft check makes the state machine fail within seconds; this was verified by hand.
-- A threaded test sends 600 payment requests 1–3 times each, shuffled across 8 threads, then settles the holds concurrently with duplicate deliveries. It asserts:
+- A threaded test sends 600 payment requests 1 to 3 times each, shuffled across 8 threads, then settles the holds concurrently with duplicate deliveries. It asserts:
   - one payment per key;
   - conservation of money;
   - no negative balances;
@@ -203,7 +203,7 @@ recall to **0.7008**:
 
 ## Limitations
 
-- **Single writer.** SQLite serializes all writes, so throughput stays around 420–560 transfers/s no matter how many threads. A Postgres version with `SELECT … FOR UPDATE` on the touched accounts (already locked in sorted id order) would scale with the number of disjoint account pairs.
+- **Single writer.** SQLite serializes all writes, so throughput stays around 420 to 560 transfers/s no matter how many threads. A Postgres version with `SELECT … FOR UPDATE` on the touched accounts (already locked in sorted id order) would scale with the number of disjoint account pairs.
 - **The reconciliation data is synthetic.** The statement generator and the matcher were written together, so the 100% score on the standard run is an upper bound. The stress run shows how quickly that falls once references are missing. Real bank files (BAI2, camt.053) carry more ambiguity, such as batched settlements and many-to-one matches.
 - **Simplified scope.**
   - Transfers are single-currency. FX works only as a hand-built multi-leg entry.

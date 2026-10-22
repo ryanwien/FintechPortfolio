@@ -1,6 +1,6 @@
 # Contributing
 
-This repo is a personal portfolio, so I keep final say on direction — but bug reports,
+This repo is a personal portfolio, so I keep final say on direction, but bug reports,
 corrections and small improvements are genuinely welcome, and issues pointing out anything
 dishonest-looking in the numbers get priority.
 
@@ -33,7 +33,7 @@ pytest                                  # warnings are errors
 python -m "$(cat .run)"                 # regenerates results/ end to end
 ```
 
-Ground rules — the long form is in [CONVENTIONS.md](./CONVENTIONS.md):
+Ground rules (the long form is in [CONVENTIONS.md](./CONVENTIONS.md)):
 
 - **Never hand-edit anything in `results/` or `assets/data.js`.** Those files are written
   by the code. If a number should change, change the code and re-run.
@@ -55,4 +55,4 @@ any kind.
 
 ## Security issues
 
-Don't open a public issue — see [SECURITY.md](./SECURITY.md).
+Don't open a public issue; see [SECURITY.md](./SECURITY.md).

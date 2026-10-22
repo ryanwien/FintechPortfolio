@@ -22,10 +22,10 @@ Please do not open a public issue for anything you believe is exploitable.
 Reports I'd consider meaningful here:
 
 - A way to make the ledger violate its invariants (lose or create money, double-apply an
-  idempotent request, bypass the overdraft guard) — these are the product guarantees.
+  idempotent request, bypass the overdraft guard); these are the product guarantees.
 - SQL injection or similar in the ledger's persistence layer.
 - XSS on the dashboard (note: project run reports are rendered from this repo's own
-  generated files, not user input — but a hole in that path still matters).
+  generated files, not user input, but a hole in that path still matters).
 - A dependency pinned in any `requirements.txt` with a known CVE that is actually
   reachable from this code.
 
