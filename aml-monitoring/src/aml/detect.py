@@ -26,6 +26,11 @@ from .rules import run_rules
 
 @dataclass(frozen=True, slots=True)
 class DetectionResult:
+    """Output of ``run_detection``: merged alerts, flagged networks and the indexed activity.
+
+    ``acts`` is reused by ``rule_sweeps`` so threshold sweeps do not re-index the world.
+    """
+
     alerts: list[Alert]
     networks: list[Network]
     cycles: list[CycleHit]

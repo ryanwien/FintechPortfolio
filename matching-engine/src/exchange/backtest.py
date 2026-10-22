@@ -67,6 +67,10 @@ class Ledger:
     n_fills: int = 0
 
     def on_fill(self, buy: bool, price: int, qty: int, maker: bool, mid_x2: int) -> None:
+        """Book one fill. ``buy`` sets the sign of the position change and ``maker`` selects
+        the rebate over the taker fee. ``mid_x2`` is the pre-trade mid (bid + ask), used only
+        for the frictionless ledger.
+        """
         sgn = 1 if buy else -1
         self.position += sgn * qty
         self.cash -= sgn * qty * price * UNITS_PER_TICK
@@ -127,6 +131,7 @@ def run_backtest(
     owner_of: dict[int, int] = {}  # order id -> owner, for every acked order
 
     def mid_now() -> int:
+        """Twice the current mid in ticks (best bid + best ask, doubled so it stays an integer)."""
         b, a = eng.best_bid(), eng.best_ask()
         return b + a if b is not None and a is not None else mid_x2
 
@@ -184,10 +189,12 @@ def run_backtest(
 
 
 def _usd(units: int) -> float:
+    """Convert $0.0001 units to dollars, rounded to the cent."""
     return round(units / UNITS_PER_USD, 2)
 
 
 def _max_drawdown(eq: list[int]) -> int:
+    """Largest peak-to-trough decline in an equity series, in the series' own units."""
     peak, mdd = eq[0], 0
     for x in eq:
         peak = max(peak, x)
@@ -284,6 +291,7 @@ def run_all(
 
 
 def main() -> None:
+    """Print the primary-seed summary of every strategy as JSON on stdout."""
     sys.stdout.write(json.dumps(run_all()[0], indent=2) + "\n")
 
 

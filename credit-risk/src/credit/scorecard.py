@@ -40,10 +40,12 @@ class Scaling:
 
     @property
     def factor(self) -> float:
+        """Score points per unit of ln(good:bad odds): PDO / ln 2, so PDO points double odds."""
         return self.pdo / math.log(2)
 
     @property
     def offset(self) -> float:
+        """Score at 1:1 odds (ln odds = 0). Chosen so base_odds maps exactly to base_score."""
         return self.base_score - self.factor * math.log(self.base_odds)
 
     def score_from_odds(self, odds_good: np.ndarray | float) -> np.ndarray | float:
@@ -100,6 +102,10 @@ class Scorecard:
 
     @property
     def features(self) -> list[str]:
+        """Characteristics the model uses, numeric then categorical.
+
+        Before ``fit`` this is the constructor input. Afterwards it excludes characteristics
+        dropped for low IV or for a wrong-signed coefficient."""
         return self.numeric + self.categorical
 
     def fit(self, df: pd.DataFrame, y: pd.Series) -> Scorecard:
@@ -138,6 +144,11 @@ class Scorecard:
         return (s.offset - s.factor * self.intercept_) / len(self.features)
 
     def _build_points(self) -> None:
+        """Convert fitted coefficients into per-bin points and cache the results.
+
+        A bin's points are ``-factor * coef * WoE`` plus that characteristic's equal share
+        of the intercept, so summing one bin per characteristic yields the scaled score.
+        """
         s = self.scaling
         shift = self._intercept_share()
         self.points = {}

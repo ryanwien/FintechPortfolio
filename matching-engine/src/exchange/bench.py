@@ -47,6 +47,7 @@ P_MARKET: Final = 0.96  # remainder: FOK
 
 
 def _passive_distance(rng: random.Random) -> int:
+    """Ticks from the mid for a passive order: 1 + Exp(mean PASSIVE_MEAN_EXTRA_TICKS)."""
     return 1 + int(rng.expovariate(1 / PASSIVE_MEAN_EXTRA_TICKS))
 
 
@@ -180,6 +181,7 @@ def run_bench(
     hash_match = rep.book_hash() == eng.book_hash()
 
     def mean_of(key: str) -> float:
+        """Average of one depth statistic over every snapshot taken during the run."""
         return round(statistics.fmean(d[key] for d in depth_samples), 1)
 
     return {
@@ -211,6 +213,7 @@ def run_bench(
 
 
 def main() -> None:
+    """Command-line entry point: run the benchmark and print its metrics as JSON."""
     ap = argparse.ArgumentParser(description="matching engine benchmark")
     ap.add_argument("--orders", type=int, default=BENCH_ORDERS)
     ap.add_argument("--seed", type=int, default=BENCH_SEED)

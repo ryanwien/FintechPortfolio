@@ -12,6 +12,7 @@ from .model import Txn, World
 
 
 def _cumsum(txns: list[Txn]) -> list[int]:
+    """Prefix sums with a leading zero, so ``cum[j] - cum[i]`` sums ``txns[i:j]``."""
     out = [0]
     for t in txns:
         out.append(out[-1] + t.amount_cents)
@@ -34,6 +35,7 @@ class Activity:
         self._out_cum: list[int] = [0]
 
     def finalize(self) -> None:
+        """Build the timestamp index and prefix sums; call once after all flows are appended."""
         self.in_ts = [t.ts for t in self.inflows]
         self.out_ts = [t.ts for t in self.outflows]
         self._in_cum = _cumsum(self.inflows)
@@ -50,9 +52,11 @@ class Activity:
         return self._out_cum[j] - self._out_cum[i]
 
     def ins_between(self, lo: int, hi: int) -> list[Txn]:
+        """Inflows with ``lo <= ts <= hi``, in time order."""
         return self.inflows[bisect_left(self.in_ts, lo) : bisect_right(self.in_ts, hi)]
 
     def outs_between(self, lo: int, hi: int) -> list[Txn]:
+        """Outflows with ``lo <= ts <= hi``, in time order."""
         return self.outflows[bisect_left(self.out_ts, lo) : bisect_right(self.out_ts, hi)]
 
 

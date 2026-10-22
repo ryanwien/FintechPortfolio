@@ -61,6 +61,7 @@ class InjectionRates:
 
 
 def _shift(d: str, days: int) -> str:
+    """Return ISO date ``d`` moved by ``days``. A negative value moves it back."""
     return (date.fromisoformat(d) + timedelta(days=days)).isoformat()
 
 
@@ -82,6 +83,7 @@ def generate_statement(
     rng.shuffle(idx)
 
     def take(rate: float) -> list[int]:
+        """Pop ``round(rate * n)`` unused item indices, so each break kind uses distinct items."""
         k = round(rate * n)
         out, idx[:] = idx[:k], idx[k:]
         return out

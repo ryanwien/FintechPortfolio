@@ -39,9 +39,11 @@ class Gateway:
     """What a participant legitimately knows: its own working orders."""
 
     def __init__(self, engine: Engine) -> None:
+        """Wrap ``engine`` as the only read path a strategy has into the book."""
         self._eng = engine
 
     def order_state(self, oid: int) -> OrderState:
+        """(side, price, leaves) of a working order, or None if it is no longer resting."""
         return self._eng.order_state(oid)
 
 
@@ -51,10 +53,12 @@ class Strategy(ABC):
     name: ClassVar[str] = "base"
 
     def __init__(self, owner: int, id_base: int) -> None:
+        """Set the owner id and the base of this strategy's private order-id range."""
         self.owner = owner
         self._next = id_base
 
     def new_id(self) -> int:
+        """Return the next order id in this strategy's range."""
         self._next += 1
         return self._next
 
@@ -77,6 +81,10 @@ class MarketMaker(Strategy):
         max_pos: int = 500,
         skew_per: int = 100,  # shade quotes one tick per this many shares of inventory
     ) -> None:
+        """Quote ``size`` shares per side. The adding side is pulled once ``max_pos`` is reached.
+
+        Each ``skew_per`` shares of inventory shifts both quotes one tick against the position.
+        """
         super().__init__(owner, MARKET_MAKER_ID_BASE)
         self.size = size
         self.max_pos = max_pos
@@ -111,6 +119,11 @@ class MarketMaker(Strategy):
         return oid
 
     def decide(self, view: View, gw: Gateway) -> list[Command]:
+        """Requote both sides: join the best quote of the other participants, shaded by inventory.
+
+        A side is pulled at the position limit and never quoted through the opposite touch.
+        Commands are returned in order and reach the engine one step later.
+        """
         bid_st = gw.order_state(self.bid_id) if self.bid_id is not None else None
         ask_st = gw.order_state(self.ask_id) if self.ask_id is not None else None
         bb = self._best_other(view.bids, bid_st)
@@ -147,6 +160,10 @@ class Momentum(Strategy):
         clip: int = 200,
         slip_cap: int = 2,
     ) -> None:
+        """Set the signal and sizing parameters.
+
+        ``entry`` and ``exit`` are in ticks of mid move over ``lookback`` steps.
+        """
         super().__init__(owner, MOMENTUM_ID_BASE)
         self.lookback = lookback
         self.entry = entry
@@ -161,6 +178,12 @@ class Momentum(Strategy):
         view: View,
         gw: Gateway,  # noqa: ARG002 - interface arg; IOC-only, so no working orders to query
     ) -> list[Command]:
+        """Trade toward a target position set by the lookback move.
+
+        Go long above ``entry``, short below ``-entry``, flat inside ``exit``, and hold the
+        previous target in between. Orders are IOCs of at most ``clip`` shares, priced up to
+        ``slip_cap`` ticks through the touch.
+        """
         m = view.mids_x2
         if len(m) <= self.lookback or not view.bids or not view.asks:
             return []

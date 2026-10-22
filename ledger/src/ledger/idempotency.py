@@ -24,6 +24,7 @@ from ledger.domain import (
 
 
 def validate_key(idempotency: IdempotencyKey) -> None:
+    """Raise ValidationError unless the key is 1 to MAX_IDEMPOTENCY_KEY_LENGTH characters."""
     if not 1 <= len(idempotency.key) <= MAX_IDEMPOTENCY_KEY_LENGTH:
         raise ValidationError(f"Idempotency-Key must be 1-{MAX_IDEMPOTENCY_KEY_LENGTH} characters")
 
@@ -62,6 +63,11 @@ def record_response(
     *,
     created_at: str,
 ) -> None:
+    """Store the response for this key.
+
+    Runs inside the caller's write transaction, so the record commits or rolls back with
+    the effect it describes.
+    """
     conn.execute(
         "INSERT INTO idempotency_keys (key, fingerprint, response, created_at) VALUES (?, ?, ?, ?)",
         (idempotency.key, fp, json.dumps(response), created_at),

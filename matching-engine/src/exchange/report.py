@@ -20,14 +20,17 @@ def fmt_usd(x: float) -> str:
 
 
 def _us(ns: float) -> str:
+    """Nanoseconds to microseconds, formatted with one decimal place."""
     return f"{ns / NS_PER_US:.1f}"
 
 
 def _counts(counts: dict[str, int]) -> str:
+    """Join a count mapping as ``name 1,234, name 5``, keeping its order."""
     return ", ".join(f"{k} {v:,}" for k, v in counts.items())
 
 
 def _benchmark_section(m: Metrics) -> list[str]:
+    """Markdown lines for the engine benchmark: throughput, latency, depth and replay check."""
     b = m["benchmark"]
     lat = b["latency_ns"]
     d = b["depth"]
@@ -57,6 +60,7 @@ def _benchmark_section(m: Metrics) -> list[str]:
 
 
 def _backtest_section(m: Metrics) -> list[str]:
+    """Markdown lines comparing both strategies: PnL decomposition, risk, fills, inventory."""
     bt = m["backtest"]
     mm, mo = bt["market_maker"], bt["momentum"]
     cfg = bt["config"]
@@ -73,9 +77,11 @@ def _backtest_section(m: Metrics) -> list[str]:
     ]
 
     def row(label: str, a: object, c: object) -> None:
+        """Append one markdown table row with a value per strategy."""
         lines.append(f"| {label} | {a} | {c} |")
 
     def usd_row(label: str, pick: Callable[[Metrics], float]) -> None:
+        """Append one markdown table row with a dollar value per strategy."""
         row(label, fmt_usd(pick(mm)), fmt_usd(pick(mo)))
 
     usd_row("**net PnL**", lambda s: s["net_pnl_usd"])
@@ -106,6 +112,7 @@ def _backtest_section(m: Metrics) -> list[str]:
 
 
 def _robustness_section(m: Metrics) -> list[str]:
+    """Markdown lines showing sign and Sharpe stability across the robustness seeds."""
     rob = m["seed_robustness"]
     seeds = [r["seed"] for r in next(iter(rob.values()))["rows"]]
     lines = [

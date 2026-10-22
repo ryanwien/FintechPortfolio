@@ -31,6 +31,8 @@ type TrialBalance = dict[str, dict[str, int]]
 
 @dataclass(frozen=True, slots=True)
 class IntegritySnapshot:
+    """Everything the integrity check reads, captured in one read transaction."""
+
     trial_balance: TrialBalance
     derived_totals: dict[str, Totals]
     accounts: list[sqlite3.Row]

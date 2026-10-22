@@ -74,6 +74,7 @@ def check_balanced(postings: Sequence[PostingSpec]) -> None:
 
 
 def _validate_effective_date(effective_date: str) -> None:
+    """Raise ValidationError unless ``effective_date`` parses as an ISO date."""
     try:
         date.fromisoformat(effective_date)
     except ValueError as exc:
@@ -84,6 +85,7 @@ class Journal:
     """Writes balanced entries and their cached-balance effects."""
 
     def __init__(self, clock: Clock) -> None:
+        """Create a journal that stamps its entries with ``clock``."""
         self._clock = clock
 
     def write_entry(

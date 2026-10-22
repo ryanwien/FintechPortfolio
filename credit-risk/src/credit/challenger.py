@@ -67,9 +67,15 @@ class Challenger:
 
     @property
     def features(self) -> list[str]:
+        """Model input columns in order: numeric features, then categorical features."""
         return self.numeric + self.categorical
 
     def _frame(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Build the model input frame in ``features`` order.
+
+        Numeric columns are cast to float. Categorical columns become pandas Categoricals
+        over the fixed generator vocabulary, so category codes do not depend on which
+        levels a given frame happens to contain."""
         X = df[self.numeric].astype(float).copy()
         for f in self.categorical:
             X[f] = pd.Categorical(df[f].astype(str), categories=_CATEGORIES[f])

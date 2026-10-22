@@ -63,6 +63,7 @@ class WorldBuilder:
         self._counters: dict[str, int] = defaultdict(int)
 
     def _next(self, key: str) -> int:
+        """Next value of a named counter, starting at 1; keeps generated ids unique per key."""
         self._counters[key] += 1
         return self._counters[key]
 
@@ -128,6 +129,7 @@ class WorldBuilder:
         return iid
 
     def build(self) -> World:
+        """Freeze the accumulated entities into a ``World``, with transactions in time order."""
         txns = sorted(self.txns, key=lambda t: (t.ts, t.txn_id))
         return World(
             customers=dict(self.customers),

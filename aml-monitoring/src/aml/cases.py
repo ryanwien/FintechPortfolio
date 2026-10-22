@@ -58,6 +58,7 @@ class Case:
 
     @property
     def families(self) -> list[str]:
+        """Sorted, de-duplicated rule families across the case's alerts."""
         return sorted({a.family for a in self.alerts})
 
 
@@ -104,9 +105,11 @@ class CaseQueue:
             self.push(c)
 
     def push(self, case: Case) -> None:
+        """Add a case; ties on score are broken by ``opened_ts`` and then ``case_id``."""
         heapq.heappush(self._heap, (-case.score, case.opened_ts, case.case_id, case))
 
     def pop(self) -> Case:
+        """Remove and return the highest-priority case; raises ``IndexError`` when empty."""
         return heapq.heappop(self._heap)[-1]
 
     def __len__(self) -> int:
@@ -131,6 +134,9 @@ def work_cases(world: World, cases: list[Case], cfg: MonitoringConfig, audit: Au
     events: list[tuple[int, str, int, str, str, dict[str, object]]] = []
 
     def ev(ts: int, case: Case, actor: str, action: str, **details: object) -> None:
+        """Queue an audit event and log its action on ``case.history``.
+        Events reach the audit log only at the end of ``work_cases``, sorted by time.
+        """
         events.append((ts, case.case_id, len(events), actor, action, details))
         case.history.append(action)
 

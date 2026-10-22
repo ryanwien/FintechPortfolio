@@ -49,6 +49,8 @@ def entry_digest(
 
 @dataclass(frozen=True, slots=True)
 class AuditEntry:
+    """One link in the hash chain; ``entry_hash`` covers every field and ``prev_hash``."""
+
     seq: int
     ts: int
     actor: str
@@ -99,16 +101,20 @@ class AuditLog:
 
     @property
     def entries(self) -> tuple[AuditEntry, ...]:
+        """Read-only snapshot of all entries in sequence order."""
         return tuple(self._entries)
 
     @property
     def head(self) -> str:
+        """Hash of the newest entry, or ``GENESIS`` for an empty log."""
         return self._entries[-1].entry_hash if self._entries else GENESIS
 
     def for_case(self, case_id: str) -> list[AuditEntry]:
+        """Entries recorded against ``case_id``, in sequence order."""
         return [e for e in self._entries if e.case_id == case_id]
 
     def verify(self) -> VerifyResult:
+        """Check the whole chain with ``verify_chain``; the log itself is never modified."""
         return verify_chain(self._entries)
 
 

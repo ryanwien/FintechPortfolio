@@ -105,6 +105,7 @@ def write_results(m: Metrics, out_dir: Path = RESULTS) -> str:
 
 
 def main() -> None:
+    """Command-line entry point: run the full pipeline and print the rendered report."""
     ap = argparse.ArgumentParser(description="benchmark + backtest, writes results/")
     ap.add_argument("--orders", type=int, default=BENCH_ORDERS)
     ap.add_argument("--steps", type=int, default=BACKTEST_STEPS)

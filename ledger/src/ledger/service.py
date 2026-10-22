@@ -69,6 +69,7 @@ class Ledger:
         clock: Callable[[], datetime] = utcnow,
         busy_timeout_s: float = DEFAULT_BUSY_TIMEOUT_S,
     ) -> None:
+        """Open the database at ``path`` and wire up the clock, journal and payment services."""
         self._db = Database(path, synchronous=synchronous, busy_timeout_s=busy_timeout_s)
         self.path = self._db.path
         self._clock = Clock(clock)
@@ -82,6 +83,7 @@ class Ledger:
         return self._db.transaction(write=write)
 
     def close(self) -> None:
+        """Close every database connection this ledger opened, across all threads."""
         self._db.close()
 
     def _execute(
@@ -122,6 +124,11 @@ class Ledger:
         allow_negative: bool = False,
         idempotency: IdempotencyKey | None = None,
     ) -> dict[str, Any]:
+        """Create an account with a zero balance and return its view.
+
+        Raises ValidationError for an unknown type, a malformed currency or an empty or
+        overlong name.
+        """
         try:
             acct_type = AccountType(type)
         except ValueError as exc:
@@ -137,6 +144,7 @@ class Ledger:
         }
 
         def op(conn: sqlite3.Connection) -> dict[str, Any]:
+            """The write itself, run inside the transaction that ``_execute`` opens."""
             acct_id = repository.new_id("acct")
             repository.insert_account(
                 conn,
@@ -152,6 +160,7 @@ class Ledger:
         return self._execute("create_account", params, idempotency, op)
 
     def get_account(self, account_id: str) -> dict[str, Any]:
+        """Return one account's view. Raises NotFoundError if it does not exist."""
         with self._tx(write=False) as conn:
             return repository.account_view(repository.load_account(conn, account_id))
 
@@ -166,6 +175,7 @@ class Ledger:
         }
 
     def list_accounts(self) -> list[dict[str, Any]]:
+        """Return every account's view, oldest first."""
         with self._tx(write=False) as conn:
             return [repository.account_view(r) for r in repository.list_account_rows(conn)]
 
@@ -215,6 +225,7 @@ class Ledger:
         }
 
         def op(conn: sqlite3.Connection) -> dict[str, Any]:
+            """The write itself, run inside the transaction that ``_execute`` opens."""
             entry_id = self._journal.write_entry(
                 conn,
                 specs,
@@ -228,6 +239,7 @@ class Ledger:
         return self._execute("post_entry", params, idempotency, op)
 
     def get_entry(self, entry_id: str) -> dict[str, Any]:
+        """Return one journal entry with its postings. Raises NotFoundError if it does not exist."""
         with self._tx(write=False) as conn:
             return repository.entry_view(conn, entry_id)
 
@@ -271,6 +283,7 @@ class Ledger:
         """
 
         def op(conn: sqlite3.Connection) -> dict[str, Any]:
+            """The write itself, run inside the transaction that ``_execute`` opens."""
             entry = repository.load_entry(conn, entry_id)
             if entry["payment_id"] is not None:
                 pay = repository.load_payment(conn, entry["payment_id"])
@@ -322,6 +335,7 @@ class Ledger:
         }
 
         def op(conn: sqlite3.Connection) -> dict[str, Any]:
+            """The write itself, run inside the transaction that ``_execute`` opens."""
             pid = self._payments.create(
                 conn,
                 source_account_id,
@@ -347,6 +361,7 @@ class Ledger:
         """Post a held payment: write its entry and release the hold atomically."""
 
         def op(conn: sqlite3.Connection) -> dict[str, Any]:
+            """The write itself, run inside the transaction that ``_execute`` opens."""
             self._payments.capture(conn, payment_id, effective_date=effective_date)
             return repository.payment_view(conn, payment_id)
 
@@ -359,6 +374,7 @@ class Ledger:
         """Release a held payment's funds without touching the journal."""
 
         def op(conn: sqlite3.Connection) -> dict[str, Any]:
+            """The write itself, run inside the transaction that ``_execute`` opens."""
             self._payments.fail(conn, payment_id, reason=reason)
             return repository.payment_view(conn, payment_id)
 
@@ -375,6 +391,7 @@ class Ledger:
         """Reverse a posted payment with a mirror-image journal entry."""
 
         def op(conn: sqlite3.Connection) -> dict[str, Any]:
+            """The write itself, run inside the transaction that ``_execute`` opens."""
             self._payments.reverse(conn, repository.load_payment(conn, payment_id), description)
             return repository.payment_view(conn, payment_id)
 
@@ -382,6 +399,7 @@ class Ledger:
         return self._execute("reverse_payment", params, idempotency, op)
 
     def get_payment(self, payment_id: str) -> dict[str, Any]:
+        """Return one payment with its event history. Raises NotFoundError if it does not exist."""
         with self._tx(write=False) as conn:
             return repository.payment_view(conn, payment_id)
 

@@ -40,6 +40,7 @@ class PaymentLifecycle:
     """State transitions of payments and their journal / hold side effects."""
 
     def __init__(self, clock: Clock, journal: Journal) -> None:
+        """Bind the clock used for timestamps and the journal used for entry writes."""
         self._clock = clock
         self._journal = journal
 
@@ -150,6 +151,11 @@ class PaymentLifecycle:
         reversal_entry_id: str | None = None,
         reason: str | None = None,
     ) -> None:
+        """Move a payment from ``current`` to ``target`` and record the transition.
+
+        Validates the transition, then compare-and-sets the status. Raises
+        ConcurrencyConflictError if the payment is no longer in ``current``.
+        """
         assert_transition(current, target)
         changed = repository.update_payment_status(
             conn,
@@ -174,6 +180,7 @@ class PaymentLifecycle:
         entry_id: str | None,
         detail: str | None,
     ) -> None:
+        """Append one row to the payment's audit trail in ``payment_events``."""
         repository.insert_payment_event(
             conn,
             payment_id,

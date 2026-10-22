@@ -19,6 +19,7 @@ class Side(IntEnum):
 
     @property
     def opposite(self) -> Side:
+        """The side that trades against this one."""
         return Side.SELL if self is Side.BUY else Side.BUY
 
     @property

@@ -57,10 +57,12 @@ class CycleHit:
 
     @property
     def retention(self) -> float:
+        """Last hop amount over first hop amount; 1.0 means the value was fully conserved."""
         return self.txns[-1].amount_cents / self.txns[0].amount_cents
 
     @property
     def hours(self) -> float:
+        """Elapsed hours from the first hop to the last hop."""
         return (self.txns[-1].ts - self.txns[0].ts) / HOUR
 
 

@@ -46,14 +46,17 @@ def ts_at(day: int, hour: int = 12, minute: int = 0) -> int:
 
 
 def to_datetime(ts: int) -> datetime:
+    """Convert minutes since ``EPOCH`` to a naive datetime."""
     return EPOCH + timedelta(minutes=ts)
 
 
 def fmt_ts(ts: int) -> str:
+    """Format a timestamp as ``YYYY-MM-DD HH:MM``."""
     return to_datetime(ts).strftime("%Y-%m-%d %H:%M")
 
 
 def fmt_date(ts: int) -> str:
+    """Format a timestamp's calendar date as ``YYYY-MM-DD``."""
     return to_datetime(ts).strftime("%Y-%m-%d")
 
 
@@ -65,11 +68,14 @@ def fmt_cents(cents: int) -> str:
 
 
 def is_external(party: str) -> bool:
+    """True for counterparties outside the bank, identified by the ``X:`` prefix."""
     return party.startswith(EXTERNAL_PREFIX)
 
 
 @dataclass(frozen=True, slots=True)
 class Customer:
+    """A bank customer as declared at onboarding, with its KYC risk rating."""
+
     customer_id: str
     name: str
     kind: str  # "individual" | "business"
@@ -82,6 +88,8 @@ class Customer:
 
 @dataclass(frozen=True, slots=True)
 class Account:
+    """An internal account owned by one customer."""
+
     account_id: str
     customer_id: str
     product: str
@@ -89,6 +97,8 @@ class Account:
 
 @dataclass(frozen=True, slots=True)
 class Txn:
+    """One transfer in integer cents; ``label`` is ground truth that detectors never read."""
+
     txn_id: str
     ts: int
     channel: str
@@ -102,6 +112,8 @@ class Txn:
 
 @dataclass(frozen=True, slots=True)
 class TypologyInstance:
+    """One injected ground-truth typology instance and its member customers."""
+
     instance_id: str
     typology: str
     members: tuple[str, ...]
@@ -123,6 +135,7 @@ class World:
     txn_by_id: dict[str, Txn] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
+        """Index transactions by id; derived state, so it is not a constructor argument."""
         self.txn_by_id = {t.txn_id: t for t in self.txns}
 
     def owner(self, party: str) -> str | None:

@@ -85,6 +85,7 @@ class _Level:
         self.count = 0
 
     def append(self, o: _Order) -> None:
+        """Queue ``o`` at the back of the FIFO and add its quantity to the level total."""
         o.level = self
         o.next = None
         o.prev = self.tail
@@ -97,6 +98,10 @@ class _Level:
         self.count += 1
 
     def unlink(self, o: _Order) -> None:
+        """Detach ``o`` from the queue in O(1) and subtract its quantity.
+
+        The caller removes the level once it is empty. The order index is not touched.
+        """
         if o.prev is None:
             self.head = o.next
         else:
@@ -182,6 +187,7 @@ class Engine:
     """
 
     def __init__(self, journal: bool = True, keep_events: bool = False) -> None:
+        """Create an empty book. ``journal`` and ``keep_events`` choose what is retained."""
         self._sides = (_BookSide(BUY), _BookSide(SELL))
         self._index: dict[int, _Order] = {}
         self._seen: set[int] = set()
@@ -226,12 +232,15 @@ class Engine:
         return self._seq
 
     def best_bid(self) -> int | None:
+        """Highest resting bid price, or None if there are no bids."""
         return self._sides[BUY].best()
 
     def best_ask(self) -> int | None:
+        """Lowest resting ask price, or None if there are no asks."""
         return self._sides[SELL].best()
 
     def has_order(self, oid: int) -> bool:
+        """True if order ``oid`` is still resting. Filled, cancelled and unknown ids are False."""
         return oid in self._index
 
     def order_state(self, oid: int) -> tuple[Side, int, int] | None:
@@ -304,6 +313,7 @@ class Engine:
 
     # ------------------------------------------------------------------ internals
     def _emit(self, ev_cls: type[Event], *args: object) -> None:
+        """Stamp the next sequence number on a new event and queue it for the current command."""
         self._seq += 1
         self._out.append(ev_cls(self._seq, *args))
 
@@ -419,6 +429,7 @@ class Engine:
         del self._index[o.oid]
 
     def _cancel(self, c: Cancel) -> None:
+        """Remove a resting order's whole open quantity. An unknown id gets a Reject instead."""
         o = self._index.get(c.order_id)
         if o is None:
             return self._emit(Reject, c.order_id, "unknown_order")

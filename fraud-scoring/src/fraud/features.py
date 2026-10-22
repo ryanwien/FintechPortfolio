@@ -106,6 +106,7 @@ class _Customer:
     )
 
     def __init__(self) -> None:
+        """Start with no history: empty 7-day window, zero amount statistics and no position."""
         self.win: deque[tuple[int, int]] = deque()  # (ts, amount_cents) in last 7 days
         self.n = 0
         self.mean = 0.0  # Welford over log1p(dollars)
@@ -126,6 +127,7 @@ class _Merchant:
     __slots__ = ("labels", "txns")
 
     def __init__(self) -> None:
+        """Start with empty 30-day transaction and chargeback-report windows."""
         self.txns: deque[int] = deque()
         self.labels: deque[int] = deque()
 
@@ -134,6 +136,7 @@ class FeatureEngine:
     """Holds per-customer, per-merchant and per-device state; emits features online."""
 
     def __init__(self) -> None:
+        """Start with no customer, merchant or device state."""
         self.customers: dict[int, _Customer] = {}
         self.merchants: dict[int, _Merchant] = {}
         self.device_customers: dict[int, set[int]] = {}

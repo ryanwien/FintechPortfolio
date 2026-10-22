@@ -40,6 +40,8 @@ class TxnIn(BaseModel):
 
 
 class Reason(BaseModel):
+    """Adverse-action reason: one feature that pushed the score up, with its logit contribution."""
+
     code: str
     feature: str
     description: str
@@ -48,6 +50,8 @@ class Reason(BaseModel):
 
 
 class ScoreOut(BaseModel):
+    """Scoring response for ``POST /score``."""
+
     txn_id: int
     score: float
     decision: Decision
@@ -58,6 +62,8 @@ class ScoreOut(BaseModel):
 
 
 class LabelIn(BaseModel):
+    """Chargeback or fraud report arriving at ``label_ts`` for a merchant."""
+
     merchant_id: int
     label_ts: int
 
@@ -68,10 +74,24 @@ def create_app(scorer: Scorer) -> FastAPI:
 
     @app.get("/health")
     def health() -> dict[str, str]:
+        """Liveness check: returns ``status: ok`` and the model version being served."""
         return {"status": "ok", "model_version": scorer.model.version}
 
     @app.post("/score", response_model=ScoreOut)
     def score(txn: TxnIn, explain: ExplainMode = "adverse", debug: bool = False) -> ScoreOut:
+        """Score one authorization request in real time.
+
+        ``score`` is the fraud probability; ``decision`` is ``approve``, ``review`` or
+        ``decline`` under the frozen cost-based bands. ``reasons`` lists the features that
+        pushed the score up, largest first. By default they are attached only to review and
+        decline decisions (``explain=adverse``); ``explain=always`` attaches them to every
+        response and ``explain=never`` to none. ``debug=true`` also returns the model input
+        features in ``FEATURES`` order.
+
+        Features are point-in-time: they use only earlier transactions and chargeback reports that
+        have arrived by ``ts``. Each call folds the request into customer state, so resending a
+        transaction counts it twice.
+        """
         t0 = time.perf_counter()
         res = scorer.score(Txn(**txn.model_dump()), explain=explain)
         return ScoreOut(
@@ -86,6 +106,12 @@ def create_app(scorer: Scorer) -> FastAPI:
 
     @app.post("/label")
     def label(ev: LabelIn) -> dict[str, str]:
+        """Record a chargeback or fraud report for a past transaction at a merchant.
+
+        ``label_ts`` is when the report arrived, not when the fraud happened. The report feeds the
+        merchant's 30-day chargeback rate for transactions scored after it arrives; no earlier score
+        changes. Returns ``status: ingested``.
+        """
         scorer.ingest_label(ev.merchant_id, ev.label_ts)
         return {"status": "ingested"}
 
@@ -93,6 +119,7 @@ def create_app(scorer: Scorer) -> FastAPI:
 
 
 def main() -> None:  # pragma: no cover - manual entry point
+    """Serve the saved scorer on ``HOST``:``PORT``. Run ``python -m fraud.run`` first."""
     import uvicorn
 
     if not SCORER_ARTIFACT.exists():

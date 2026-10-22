@@ -68,6 +68,7 @@ def describe(feature: str, value: float, reference: float) -> str:
 
 
 def _logit(p: np.ndarray) -> np.ndarray:
+    """Log-odds of ``p``, with ``p`` clipped away from 0 and 1 so the result stays finite."""
     p = np.clip(p, LOGIT_CLIP, 1 - LOGIT_CLIP)
     return np.log(p / (1 - p))
 
@@ -108,6 +109,7 @@ class FraudModel:
     forest: CompiledForest = field(init=False)
 
     def __post_init__(self) -> None:
+        """Compile the fitted estimator into the flat-array forest used for online scoring."""
         self.forest = CompiledForest(self.estimator)
 
     @classmethod

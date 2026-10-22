@@ -21,6 +21,8 @@ from ledger.domain import IllegalTransitionError
 
 
 class PaymentStatus(StrEnum):
+    """The states a payment can be in. The module docstring shows the transitions."""
+
     PENDING = "pending"
     POSTED = "posted"
     FAILED = "failed"

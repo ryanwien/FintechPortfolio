@@ -43,6 +43,7 @@ _V = TypeVar("_V")
 
 
 def _rate(num: int, den: int) -> float:
+    """Ratio rounded to ``RATE_DECIMALS``; 0.0 when the denominator is zero."""
     return round(num / den, RATE_DECIMALS) if den else 0.0
 
 
@@ -103,6 +104,7 @@ def evaluate(
     }
 
     def case_true(c: Case) -> bool:
+        """True when any subject of the case is a labelled suspicious customer."""
         return any(s in truth for s in c.subjects)
 
     reviewed = [c for c in atl if c.disposition is not None]
@@ -218,6 +220,7 @@ def rule_sweeps(
         target: str,
         fmt: Callable[[_V], object] = lambda v: v,
     ) -> None:
+        """Run ``run`` at each value and store the points under ``name``; ``fmt`` labels them."""
         pts = []
         for v in values:
             p = _rule_point(world, run(v), target, gap)
@@ -270,6 +273,7 @@ def rule_sweeps(
     gc = cfg.graph
 
     def fans(v: int) -> list[Alert]:
+        """Fan-in (GRA-FIN) alerts with ``fan_in_min`` set to ``v``, for one sweep point."""
         c2 = replace(gc, fan_in_min=v)
         return [
             a

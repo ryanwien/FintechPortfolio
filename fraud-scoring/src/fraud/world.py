@@ -84,6 +84,7 @@ class TxnRows:
     """Column-oriented accumulator for transactions (cheap appends, one DataFrame at the end)."""
 
     def __init__(self) -> None:
+        """Start with an empty list for every transaction column."""
         self.cols: dict[str, list] = {k: [] for k in COLUMNS}
 
     def add(
@@ -102,6 +103,7 @@ class TxnRows:
         fraud_type: str,
         label_ts: int,
     ) -> None:
+        """Append one transaction, one value per column; all arguments are keyword-only."""
         values = (
             ts,
             customer_id,
@@ -124,9 +126,11 @@ class DeviceIds:
     """Monotonic allocator for never-seen device ids."""
 
     def __init__(self, start: int) -> None:
+        """Allocate ids above ``start``; the first call to :meth:`new` returns ``start + 1``."""
         self.next = start
 
     def new(self) -> int:
+        """Return the next unused device id."""
         self.next += 1
         return self.next
 

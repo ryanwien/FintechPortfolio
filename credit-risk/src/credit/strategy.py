@@ -62,6 +62,7 @@ class CutoffRow(TypedDict):
 
 
 def _cents(x: Decimal) -> int:
+    """Round a Decimal amount to whole cents with half-to-even rounding, as an int."""
     return int(x.quantize(CENT, rounding=ROUND_HALF_EVEN))
 
 

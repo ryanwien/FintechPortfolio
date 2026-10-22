@@ -66,6 +66,7 @@ class Bands:
     decline_at: float  # score >= decline_at -> decline
 
     def decide(self, score: float) -> Decision:
+        """Return the decision for one score: decline first, then review, otherwise approve."""
         if score >= self.decline_at:
             return "decline"
         if score >= self.review_at:

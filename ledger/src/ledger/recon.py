@@ -25,6 +25,8 @@ from typing import Any, Final
 
 
 class Recon(StrEnum):
+    """How one ledger item, bank line or matched pair was classified. See the module docstring."""
+
     MATCHED = "matched"
     MATCHED_FUZZY = "matched_fuzzy"
     TIMING = "timing"
@@ -97,9 +99,14 @@ class Classified:
 
     @property
     def key(self) -> str:
+        """The ledger reference if there is one, otherwise the bank line id."""
         return self.ref if self.ref is not None else str(self.line_id)
 
     def to_dict(self) -> dict[str, Any]:
+        """Serializable form with ``kind`` as a string and the derived ``delta``.
+
+        Includes ``days_apart`` when both dates are known.
+        """
         d = asdict(self)
         d["kind"] = self.kind.value
         d["delta"] = self.delta
@@ -118,13 +125,20 @@ class ReconReport:
 
     @property
     def breaks(self) -> list[Classified]:
+        """The items that are discrepancies rather than matches."""
         return [c for c in self.items if c.kind in BREAKS]
 
     def counts(self) -> dict[str, int]:
+        """Number of items per classification, with zero for kinds that did not occur."""
         c = Counter(i.kind.value for i in self.items)
         return {k.value: c.get(k.value, 0) for k in Recon}
 
     def summary(self, ledger_items: list[LedgerItem], lines: list[BankLine]) -> dict[str, Any]:
+        """Totals and match rate for the run.
+
+        ``unexplained_difference`` is zero when every cent of the difference is attributed to a
+        classified item.
+        """
         ledger_total = sum(i.amount for i in ledger_items)
         bank_total = sum(b.amount for b in lines)
         explained = sum(c.delta for c in self.items)
@@ -144,6 +158,7 @@ class ReconReport:
 
 
 def _days_apart(a: str, b: str) -> int:
+    """Absolute number of days between two ISO dates."""
     return abs((date.fromisoformat(a) - date.fromisoformat(b)).days)
 
 

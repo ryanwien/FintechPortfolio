@@ -83,6 +83,7 @@ class FundamentalProcess:
     """
 
     def __init__(self, cfg: MarketConfig) -> None:
+        """Start at ``cfg.start_price`` in the initial regime, on a seed-derived RNG stream."""
         self.cfg = cfg
         self.rng = random.Random(cfg.seed * _FUNDAMENTAL_SEED_MULT + _FUNDAMENTAL_SEED_OFFSET)
         self.value = float(cfg.start_price)
@@ -109,6 +110,7 @@ class BackgroundMarket:
     def __init__(
         self, engine: Engine, cfg: MarketConfig, execute: Callable[[Command], list[Event]]
     ) -> None:
+        """Set up the crowd on ``engine``. Every order it sends goes through ``execute``."""
         self.eng = engine
         self.cfg = cfg
         self.exec = execute
@@ -119,11 +121,16 @@ class BackgroundMarket:
         self.maker_price: dict[int, int] = {}
 
     def _oid(self) -> int:
+        """Return the next background order id from this market's counter."""
         oid = self.next_id
         self.next_id += 1
         return oid
 
     def _maker_add(self, v: float) -> None:
+        """Post one post-only maker quote at a random depth outside value ``v``.
+
+        The quote is tracked for later cancel or cull. Non-positive prices are skipped.
+        """
         rng, cfg = self.rng, self.cfg
         side = random_side(rng)
         depth = 1 + int(rng.expovariate(1.0 / cfg.maker_mean_depth))
@@ -148,6 +155,10 @@ class BackgroundMarket:
         return oid
 
     def _maker_cancel_random(self) -> None:
+        """Cancel one random tracked maker quote that is still live.
+
+        Stale ids drawn on the way are discarded. At most one cancel is sent.
+        """
         lst = self.maker_orders
         while lst:
             oid = self._drop(self.rng.randrange(len(lst)))

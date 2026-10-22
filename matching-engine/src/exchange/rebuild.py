@@ -41,11 +41,16 @@ class BookBuilder:
     """
 
     def __init__(self) -> None:
+        """Start with no tracked orders and an empty book. State comes only from events."""
         self.orders: dict[int, _OrderRecord] = {}
         # Per side: price -> order ids in time priority.
         self.book: tuple[dict[int, list[int]], dict[int, list[int]]] = ({}, {})
 
     def _unrest(self, oid: int) -> None:
+        """Take a resting order off its price queue, dropping the level if it empties.
+
+        No-op if the order is not resting. The order record itself is kept.
+        """
         rec = self.orders[oid]
         if rec.resting:
             queue = self.book[rec.side][rec.price]

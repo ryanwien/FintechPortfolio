@@ -112,44 +112,64 @@ class LedgerError(Exception):
 
 
 class ValidationError(LedgerError):
+    """An input failed a rule (HTTP 422). Base class for entry validation errors."""
+
     code = "validation_error"
     http_status = 422
 
 
 class UnbalancedEntryError(ValidationError):
+    """An entry has too few postings or its debits and credits differ in some currency."""
+
     code = "unbalanced_entry"
 
 
 class CurrencyMismatchError(ValidationError):
+    """A posting's currency differs from its account's currency."""
+
     code = "currency_mismatch"
 
 
 class InsufficientFundsError(LedgerError):
+    """A debit would take an account below zero without the overdraft allowance (HTTP 422)."""
+
     code = "insufficient_funds"
     http_status = 422
 
 
 class NotFoundError(LedgerError):
+    """A referenced account, entry or payment does not exist (HTTP 404)."""
+
     code = "not_found"
     http_status = 404
 
 
 class ConflictError(LedgerError):
+    """The request conflicts with the current state of the ledger (HTTP 409)."""
+
     code = "conflict"
     http_status = 409
 
 
 class IdempotencyConflictError(ConflictError):
+    """An ``Idempotency-Key`` was reused with a different request."""
+
     code = "idempotency_key_reused"
 
 
 class ConcurrencyConflictError(ConflictError):
+    """An account or payment changed since the caller last read it."""
+
     code = "lock_version_mismatch"
 
 
 class IllegalTransitionError(ConflictError):
+    """A payment status change that the state machine does not allow."""
+
     code = "illegal_state_transition"
 
 
 class AlreadyReversedError(ConflictError):
+    """The entry has already been reversed. An entry is reversed at most once."""
+
     code = "already_reversed"

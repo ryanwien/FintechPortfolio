@@ -70,6 +70,10 @@ class SplitMasks:
 
     @classmethod
     def from_periods(cls, period: np.ndarray, split: TimeSplit) -> SplitMasks:
+        """Build one boolean mask per split from each transaction's calendar-month index.
+
+        Train, validation and test are month sets; the shifted split is the single shifted month.
+        """
         return cls(
             train=np.isin(period, split.train),
             valid=np.isin(period, split.valid),
@@ -78,6 +82,7 @@ class SplitMasks:
         )
 
     def __getitem__(self, name: str) -> np.ndarray:
+        """Return the mask for a split by name, so ``masks["test"]`` works."""
         return getattr(self, name)
 
 

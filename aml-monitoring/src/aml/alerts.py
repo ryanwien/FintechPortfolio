@@ -25,6 +25,12 @@ type Hit = tuple[list[Txn], Details]
 
 @dataclass(frozen=True, slots=True)
 class Alert:
+    """A detector alert: one customer, one rule, one time span, and the txns that evidence it.
+
+    ``score`` is the signal strength in [0, 1]. ``alert_id`` stays empty until
+    ``dedupe_alerts`` stamps it. ``details`` is excluded from equality comparisons.
+    """
+
     rule_id: str
     family: str
     customer_id: str

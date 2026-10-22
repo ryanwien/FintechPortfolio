@@ -58,14 +58,17 @@ class SimConfig:
 
     @property
     def total_days(self) -> int:
+        """Length of the simulated stream in days."""
         return self.n_periods * self.period_days
 
     @property
     def total_seconds(self) -> int:
+        """Length of the simulated stream in seconds."""
         return self.total_days * DAY
 
     @property
     def period_seconds(self) -> int:
+        """Length of one simulated period in seconds."""
         return self.period_days * DAY
 
     @property
@@ -87,6 +90,7 @@ class CostConfig:
     max_review_rate: float = 0.01  # analyst capacity: at most 1% of traffic
 
     def as_dict(self) -> dict[str, Any]:
+        """Cost parameters as a plain dict, for the metrics output."""
         return asdict(self)
 
 

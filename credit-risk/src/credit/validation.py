@@ -169,4 +169,8 @@ def adverse_action_summary(
 
 
 def _reason_counts(counts: Counter[str]) -> dict[str, dict[str, object]]:
+    """Pair each adverse-action reason code with its statement and count, most frequent first.
+
+    Raises KeyError for a code that has no entry in ``STATEMENT_BY_CODE``.
+    """
     return {c: {"statement": STATEMENT_BY_CODE[c], "count": n} for c, n in counts.most_common()}

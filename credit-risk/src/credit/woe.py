@@ -100,6 +100,11 @@ class FeatureBinning:
 
 
 def _is_monotonic(woe: np.ndarray, direction: int) -> bool:
+    """Whether WoE moves strictly in the direction ``direction`` across adjacent bins.
+
+    Direction +1 requires WoE to fall at every step (risk rising with the feature), and
+    -1 requires it to rise. Equal neighbours count as a violation.
+    """
     diffs = np.diff(woe)
     return bool(np.all(diffs < 0)) if direction > 0 else bool(np.all(diffs > 0))
 
@@ -122,6 +127,10 @@ def bin_numeric(
     direction = 1 if (rank_corr if not math.isnan(rank_corr) else 0) >= 0 else -1
 
     def stats(e: list[float]) -> tuple[np.ndarray, np.ndarray]:
+        """Good and bad counts per bin for the cut points ``e``.
+
+        Bin i holds values in (e[i-1], e[i]], with open outer bins, so there are
+        len(e) + 1 bins."""
         idx = np.searchsorted(np.asarray(e), xv, side="left")
         cnt = np.bincount(idx, minlength=len(e) + 1)
         bad = np.bincount(idx, weights=yv, minlength=len(e) + 1)
@@ -220,6 +229,11 @@ class WoEBinner:
     def fit(
         self, df: pd.DataFrame, y: pd.Series, numeric: list[str], categorical: list[str]
     ) -> WoEBinner:
+        """Bin every characteristic: numeric via ``bin_numeric``, categorical via
+        ``bin_categorical``.
+
+        ``y`` is the bad flag (1 = bad). Results are stored in ``binnings`` keyed by
+        feature name."""
         for f in numeric:
             self.binnings[f] = bin_numeric(df[f], y, f, self.max_bins, self.min_bin_frac)
         for f in categorical:

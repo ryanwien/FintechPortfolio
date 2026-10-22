@@ -43,6 +43,10 @@ class Database:
         synchronous: str = DEFAULT_SYNCHRONOUS,
         busy_timeout_s: float = DEFAULT_BUSY_TIMEOUT_S,
     ) -> None:
+        """Open the database and create the schema.
+
+        Raises ValueError for an unknown ``synchronous`` mode.
+        """
         if synchronous.upper() not in SYNCHRONOUS_MODES:
             raise ValueError(f"bad synchronous mode {synchronous!r}")
         self.path = str(path)
@@ -60,6 +64,7 @@ class Database:
         self.connection().executescript(SCHEMA)
 
     def _open(self) -> sqlite3.Connection:
+        """Open a connection with foreign keys on, WAL for files, and track it for close()."""
         conn = sqlite3.connect(
             self.path,
             isolation_level=None,  # we issue BEGIN/COMMIT ourselves
@@ -86,6 +91,9 @@ class Database:
         return conn
 
     def _guard(self, *, write: bool) -> AbstractContextManager[object]:
+        """Return the in-process lock for this mode: the shared RLock for ``:memory:``,
+        the write mutex for writes, or a no-op for reads.
+        """
         if self._mem_lock is not None:
             return self._mem_lock
         return self._write_lock if write else nullcontext()

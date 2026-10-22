@@ -33,6 +33,7 @@ def md_table(headers: list[str], rows: list[list[Any]]) -> str:
 
 
 def _concurrency_rows(m: dict[str, Any]) -> list[list[Any]]:
+    """Table rows for the transfers-by-concurrency section of the report."""
     return [
         [
             r["threads"],
@@ -49,6 +50,7 @@ def _concurrency_rows(m: dict[str, Any]) -> list[list[Any]]:
 
 
 def _recon_rows(r: dict[str, Any]) -> list[list[Any]]:
+    """Table rows, one per break type, for a reconciliation run."""
     return [
         [k, v["injected"], v["detected"], v["true_positive"], v["precision"], v["recall"]]
         for k, v in r["scoring"]["per_kind"].items()

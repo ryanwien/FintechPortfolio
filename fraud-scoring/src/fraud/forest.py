@@ -44,6 +44,10 @@ class CompiledForest:
     """
 
     def __init__(self, est: HistGradientBoostingClassifier) -> None:
+        """Flatten the fitted estimator's trees, categorical maps and bitsets into NumPy arrays.
+
+        Raises ``ValueError`` for a model that is not binary classification.
+        """
         if est.n_trees_per_iteration_ != 1:
             raise ValueError("binary classification only")
         n_in = est.n_features_in_
@@ -139,6 +143,10 @@ class CompiledForest:
         return z
 
     def _raw_chunk(self, z: np.ndarray) -> np.ndarray:
+        """Walk all trees over one chunk of rows in lock-step and return raw logit scores.
+
+        ``z`` must already be column-ordered and ordinal-encoded by :meth:`_transform`.
+        """
         b = len(z)
         node = np.broadcast_to(self.roots, (b, len(self.roots))).copy()
         rows = np.arange(b)[:, None]

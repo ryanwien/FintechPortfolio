@@ -53,10 +53,12 @@ class StageTimer:
     """Collects wall-clock seconds per named pipeline stage, in execution order."""
 
     def __init__(self) -> None:
+        """Start with no stages recorded."""
         self.seconds: dict[str, float] = {}
 
     @contextmanager
     def __call__(self, name: str) -> Iterator[None]:
+        """Time the enclosed block and store its wall-clock seconds under ``name``."""
         t0 = time.perf_counter()
         try:
             yield
@@ -65,6 +67,7 @@ class StageTimer:
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    """Write ``payload`` to ``path`` as indented UTF-8 JSON with a trailing newline."""
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 

@@ -123,6 +123,7 @@ def gen_p2p(b: WorldBuilder, individuals: list[str]) -> None:
 
 
 def _default_business_kyc(b: WorldBuilder, segment: str) -> str:
+    """KYC draw for a business segment: cash-heavy, high-scrutiny, or standard weights."""
     if segment in CASH_SEGMENTS:
         return b.draw_kyc(CASH_BUSINESS_KYC_WEIGHTS)
     if segment in HIGH_SCRUTINY_SEGMENTS:

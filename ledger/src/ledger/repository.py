@@ -28,6 +28,7 @@ def new_id(prefix: str) -> str:
 
 
 def _placeholders(n: int) -> str:
+    """SQL placeholder list ``?,?,...`` for ``n`` bound values."""
     return ",".join("?" * n)
 
 
@@ -44,6 +45,7 @@ def insert_account(
     allow_negative: bool,
     created_at: str,
 ) -> None:
+    """Insert an account row. The caller supplies the id and timestamp."""
     conn.execute(
         "INSERT INTO accounts (id, name, type, currency, allow_negative, created_at) "
         "VALUES (?, ?, ?, ?, ?, ?)",
@@ -52,6 +54,7 @@ def insert_account(
 
 
 def load_account(conn: sqlite3.Connection, account_id: str) -> sqlite3.Row:
+    """Load one account row. Raises NotFoundError if it does not exist."""
     row = conn.execute("SELECT * FROM accounts WHERE id = ?", (account_id,)).fetchone()
     if row is None:
         raise NotFoundError(f"account {account_id} not found")
@@ -72,10 +75,12 @@ def load_accounts(conn: sqlite3.Connection, ids: Sequence[str]) -> dict[str, sql
 
 
 def list_account_rows(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+    """Return every account row, oldest first."""
     return conn.execute("SELECT * FROM accounts ORDER BY created_at, id").fetchall()
 
 
 def account_view(row: sqlite3.Row) -> dict[str, Any]:
+    """JSON view of an account, including computed balances and its lock version."""
     return {
         "id": row["id"],
         "name": row["name"],
@@ -155,6 +160,7 @@ def entry_is_balanced_in_db(conn: sqlite3.Connection, entry_id: str) -> bool:
 
 
 def load_entry(conn: sqlite3.Connection, entry_id: str) -> sqlite3.Row:
+    """Load one entry row. Raises NotFoundError if it does not exist."""
     row = conn.execute("SELECT * FROM entries WHERE id = ?", (entry_id,)).fetchone()
     if row is None:
         raise NotFoundError(f"entry {entry_id} not found")
@@ -162,6 +168,7 @@ def load_entry(conn: sqlite3.Connection, entry_id: str) -> sqlite3.Row:
 
 
 def is_reversed(conn: sqlite3.Connection, entry_id: str) -> bool:
+    """Whether an entry has been written as the reversal of ``entry_id``."""
     found = conn.execute(
         "SELECT 1 FROM entries WHERE reverses_entry_id = ?", (entry_id,)
     ).fetchone()
@@ -207,6 +214,7 @@ def postings_for(
 def entry_dict(
     row: sqlite3.Row, postings: list[dict[str, Any]], reversed_by: str | None
 ) -> dict[str, Any]:
+    """Assemble the JSON view of an entry from its row, postings and reversal id."""
     return {
         "id": row["id"],
         "seq": row["seq"],
@@ -222,6 +230,7 @@ def entry_dict(
 
 
 def entry_view(conn: sqlite3.Connection, entry_id: str) -> dict[str, Any]:
+    """JSON view of one entry with its postings and reversal id."""
     row = load_entry(conn, entry_id)
     rev = conn.execute("SELECT id FROM entries WHERE reverses_entry_id = ?", (entry_id,)).fetchone()
     return entry_dict(
@@ -281,6 +290,7 @@ def insert_payment(
 
 
 def load_payment(conn: sqlite3.Connection, payment_id: str) -> sqlite3.Row:
+    """Load one payment row. Raises NotFoundError if it does not exist."""
     row = conn.execute("SELECT * FROM payments WHERE id = ?", (payment_id,)).fetchone()
     if row is None:
         raise NotFoundError(f"payment {payment_id} not found")
@@ -327,6 +337,7 @@ def insert_payment_event(
     detail: str | None,
     created_at: str,
 ) -> None:
+    """Append one row to a payment's audit trail."""
     conn.execute(
         "INSERT INTO payment_events "
         "(payment_id, from_status, to_status, entry_id, detail, created_at) "
@@ -343,6 +354,7 @@ def insert_payment_event(
 
 
 def payment_view(conn: sqlite3.Connection, payment_id: str) -> dict[str, Any]:
+    """JSON view of a payment with its full event history."""
     p = load_payment(conn, payment_id)
     events = conn.execute(
         "SELECT from_status, to_status, entry_id, detail, created_at FROM payment_events "

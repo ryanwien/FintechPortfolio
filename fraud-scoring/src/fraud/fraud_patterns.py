@@ -99,6 +99,7 @@ class _Injector:
         rows: TxnRows,
         devices: DeviceIds,
     ) -> None:
+        """Bind the world, RNG, output rows and device-id allocator for one simulation run."""
         self.w = w
         self.rng = rng
         self.rows = rows
@@ -115,10 +116,12 @@ class _Injector:
         return int(self.rng.choice(len(p), p=p / p.sum()))
 
     def physical(self, mcc: int, loc: int) -> int:
+        """Pick a random merchant with this MCC in location ``loc``."""
         pool = self.w.merch_by_mcc_loc[(MCC_INDEX[mcc], loc)]
         return int(pool[int(self.rng.integers(0, len(pool)))])
 
     def near_home(self, c: int) -> tuple[float, float]:
+        """Customer home location with GPS-scale noise, so the fraud looks local."""
         return (
             float(self.w.cust_home[c, 0] + self.rng.normal(0, NEAR_HOME_NOISE_DEG)),
             float(self.w.cust_home[c, 1] + self.rng.normal(0, NEAR_HOME_NOISE_DEG)),
@@ -132,6 +135,7 @@ class _Injector:
         return LOCATIONS[k][1], LOCATIONS[k][2]
 
     def ring_or_new_device(self, p_ring: float) -> int:
+        """Shared ring device with probability ``p_ring``, otherwise a freshly allocated device."""
         if self.rng.random() < p_ring:
             return int(self.rng.choice(RING_DEVICES))
         return self.devices.new()
@@ -168,6 +172,7 @@ class _Injector:
 
 
 def _card_testing(inj: _Injector, day0: int) -> None:
+    """Emit a burst of small digital-goods charges, sometimes followed by a larger cash-out."""
     rng = inj.rng
     t = day0 + int(rng.integers(0, DAY))
     c = inj.victim(t)
@@ -184,6 +189,11 @@ def _card_testing(inj: _Injector, day0: int) -> None:
 
 
 def _account_takeover(inj: _Injector, day0: int, shifted: bool) -> None:
+    """Emit one account-takeover episode for a random victim: a burst of online purchases.
+
+    Before the shift the attacker sits at an away location or uses a ring device. In the shifted
+    period it stays near home on a new device and buys smaller baskets at general online retail.
+    """
     rng = inj.rng
     t = day0 + int(rng.integers(0, DAY))
     c = inj.victim(t)
@@ -208,6 +218,7 @@ def _account_takeover(inj: _Injector, day0: int, shifted: bool) -> None:
 
 
 def _high_value(inj: _Injector, day0: int) -> None:
+    """Emit one or two out-of-pattern big-ticket card-present purchases for a random victim."""
     rng = inj.rng
     t = day0 + int(rng.integers(8 * HOUR, 22 * HOUR))
     c = inj.victim(t)

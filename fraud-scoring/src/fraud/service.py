@@ -25,6 +25,7 @@ class Scorer:
     """Stateful scorer. One lock serialises state updates so concurrent requests are safe."""
 
     def __init__(self, model: FraudModel, engine: FeatureEngine, bands: Bands) -> None:
+        """Hold the model, feature state and decision bands behind a single lock."""
         self.model = model
         self.engine = engine
         self.bands = bands
@@ -64,6 +65,7 @@ class Scorer:
             self.engine.ingest_label(merchant_id, label_ts)
 
     def save(self, path: Path) -> None:
+        """Pickle the model, feature state and bands to ``path`` for the API to load."""
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("wb") as fh:
             pickle.dump((self.model, self.engine, self.bands), fh)

@@ -74,6 +74,7 @@ def pct(values: list[float], p: float) -> float:
 
 
 def _ms(values: list[float], p: float) -> float:
+    """Percentile ``p`` of ``values``, rounded to the report's latency precision."""
     return round(pct(values, p), LATENCY_DECIMALS)
 
 
@@ -107,6 +108,7 @@ def transfer_load(
     barrier = threading.Barrier(threads + 1)
 
     def worker(t: int) -> None:
+        """Run one thread's share of the transfers after the shared start barrier."""
         rng = random.Random(BENCH_SEED + t)
         lat = latencies[t]
         try:
@@ -257,6 +259,7 @@ def _headline(
     standard: dict[str, Any],
     stress: dict[str, Any],
 ) -> dict[str, Any]:
+    """Reduce the full run to the flat headline figures stored in metrics.json."""
     single = by_conc[0]
     return {
         "transfer_p50_ms": single["latency_ms"]["p50"],
@@ -277,6 +280,10 @@ def _headline(
 
 
 def main(argv: list[str] | None = None) -> dict[str, Any]:
+    """Run every benchmark, write the results and return the metrics dict.
+
+    Pass ``--quick`` for a smoke-test-sized run.
+    """
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--quick", action="store_true")
     args = ap.parse_args(argv)
