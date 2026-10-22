@@ -23,6 +23,7 @@ KEY_RECALL_WIDE: Final = "recall_at_2pct_alerts"
 
 def recall_at_alert_rate(scores: np.ndarray, y: np.ndarray, rate: float) -> dict[str, Any]:
     """Recall and precision when alerting on the top ``rate`` share of traffic (counts only)."""
+    # At least one alert, so a tiny sample still reports a recall instead of zero alerts.
     n_alert = max(1, math.ceil(rate * len(scores)))
     order = np.argsort(-scores, kind="stable")
     top = order[:n_alert]
@@ -41,6 +42,7 @@ def reliability(
 ) -> list[dict[str, Any]]:
     """Calibration table: mean predicted vs observed rate per score bin (empty bins dropped)."""
     edges = edges or RELIABILITY_EDGES
+    # Bin index per score; the clip keeps a score of exactly 1.0 in the last bin.
     idx = np.clip(np.searchsorted(edges, scores, side="right") - 1, 0, len(edges) - 2)
     out = []
     for b in range(len(edges) - 1):
@@ -70,8 +72,10 @@ def classification_report(scores: np.ndarray, y: np.ndarray, probabilistic: bool
         # 0.5% alerts cannot cover a ~1.5% fraud rate; 2% shows the headroom beyond it.
         KEY_RECALL_WIDE: recall_at_alert_rate(scores, y, ALERT_RATE_WIDE),
     }
+    # Brier and calibration need probabilities; the rules output points, not probabilities.
     if probabilistic:
         rep["brier"] = float(brier_score_loss(y, scores))
+        # Base-rate Brier: the score of always predicting the fraud rate. A model must beat it.
         rep["brier_base_rate"] = float(brier_score_loss(y, np.full(len(y), y.mean())))
         rep["reliability"] = reliability(scores, y)
     return rep

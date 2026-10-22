@@ -32,9 +32,12 @@ def ks(y_bad: np.ndarray, pd_hat: np.ndarray) -> float:
     """Max distance between cumulative bad and good distributions over the risk ranking."""
     y = np.asarray(y_bad, dtype=int)
     p = np.asarray(pd_hat, dtype=float)
+    # Riskiest first. A stable sort keeps tied scores in input order, so KS is
+    # deterministic.
     order = np.argsort(-p, kind="mergesort")
     y_sorted = y[order]
     p_sorted = p[order]
+    # Cumulative share of bads and goods down the ranking; KS is the largest gap.
     cum_bad = np.cumsum(y_sorted) / max(y.sum(), 1)
     cum_good = np.cumsum(1 - y_sorted) / max((1 - y).sum(), 1)
     # evaluate only at the last index of each tied block of scores
@@ -47,6 +50,7 @@ def calibration_by_decile(
 ) -> pd.DataFrame:
     """Predicted vs observed default rate by predicted-PD decile (decile 1 = riskiest)."""
     df = pd.DataFrame({"y": np.asarray(y_bad, dtype=int), "p": np.asarray(pd_hat, dtype=float)})
+    # method='first' splits tied PDs so deciles stay equal in size. Decile 1 is riskiest.
     ranks = df["p"].rank(method="first", ascending=False)
     df["decile"] = np.ceil(ranks / len(df) * n).astype(int).clip(1, n)
     g = df.groupby("decile").agg(
@@ -60,6 +64,7 @@ def psi(expected: np.ndarray, actual: np.ndarray, n_bins: int = N_DECILES) -> fl
     """Population Stability Index of ``actual`` vs ``expected`` on expected-quantile bins."""
     e = np.asarray(expected, dtype=float)
     a = np.asarray(actual, dtype=float)
+    # Edges come from the expected sample only; the actual sample is binned with them.
     edges = np.unique(np.quantile(e, np.linspace(0, 1, n_bins + 1)[1:-1]))
     e_cnt = np.bincount(np.searchsorted(edges, e, side="left"), minlength=len(edges) + 1)
     a_cnt = np.bincount(np.searchsorted(edges, a, side="left"), minlength=len(edges) + 1)
@@ -68,10 +73,12 @@ def psi(expected: np.ndarray, actual: np.ndarray, n_bins: int = N_DECILES) -> fl
 
 def psi_from_counts(expected_counts: np.ndarray, actual_counts: np.ndarray) -> float:
     """PSI from pre-binned counts (also used as the characteristic stability index, CSI)."""
+    # Add-half smoothing keeps empty bins finite before counts become shares.
     e = np.asarray(expected_counts, dtype=float) + _PSI_SMOOTHING
     a = np.asarray(actual_counts, dtype=float) + _PSI_SMOOTHING
     e /= e.sum()
     a /= a.sum()
+    # Each term (a - e) * ln(a / e) is non-negative, so PSI is too.
     return float(np.sum((a - e) * np.log(a / e)))
 
 

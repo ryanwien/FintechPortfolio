@@ -41,9 +41,12 @@ def woe_iv(goods: np.ndarray, bads: np.ndarray) -> tuple[np.ndarray, np.ndarray]
     """Return per-bin WoE and IV contributions for arrays of good and bad counts."""
     goods = np.asarray(goods, dtype=float) + _EPS
     bads = np.asarray(bads, dtype=float) + _EPS
+    # Each side becomes a share of its class total; WoE compares the two distributions.
     dist_g = goods / goods.sum()
     dist_b = bads / bads.sum()
     woe = np.log(dist_g / dist_b)
+    # IV sums (share_good - share_bad) * WoE over bins. Each term is >= 0 because the
+    # two factors always share a sign, so IV is non-negative.
     iv = (dist_g - dist_b) * woe
     return woe, iv
 
@@ -71,6 +74,8 @@ class FeatureBinning:
     def bin_index(self, x: pd.Series) -> np.ndarray:
         """Bin index per value; -1 for an unseen category when no ``__OTHER__`` bin exists."""
         if self.kind == "numeric":
+            # side='left' puts a value equal to an edge in the lower bin, matching the
+            # (e_{i-1}, e_i] interval labels.
             return np.searchsorted(self.edges, np.asarray(x, dtype=float), side="left")
         other = self.category_map.get(OTHER, -1)
         return np.array([self.category_map.get(str(v), other) for v in x], dtype=np.int64)
@@ -120,10 +125,15 @@ def bin_numeric(
     xv = np.asarray(x, dtype=float)
     yv = np.asarray(y, dtype=int)
     n = len(xv)
+    # Start from up to max_bins quantile cuts so bins begin roughly equal in population.
     qs = np.quantile(xv, np.linspace(0, 1, max_bins + 1)[1:-1])
+    # Repeated quantiles (heavy ties) collapse here, so no zero-width cut is created.
     edges = list(np.unique(qs))
 
+    # Direction is the sign of the rank correlation with bad. A value >= 0 means risk
+    # rises with x, so WoE has to fall as x rises.
     rank_corr = pd.Series(xv).rank().corr(pd.Series(yv).astype(float))
+    # A constant feature gives NaN, which is treated as 0 and therefore direction +1.
     direction = 1 if (rank_corr if not math.isnan(rank_corr) else 0) >= 0 else -1
 
     def stats(e: list[float]) -> tuple[np.ndarray, np.ndarray]:
@@ -136,13 +146,18 @@ def bin_numeric(
         bad = np.bincount(idx, weights=yv, minlength=len(e) + 1)
         return cnt, bad
 
+    # Repair loop, one cut removed per pass. Checks run in order: no empty bins, then
+    # every bin large enough, then monotone WoE. With no cuts left there is one bin.
     while edges:
         cnt, bad = stats(edges)
         # Drop empty bins produced by ties.
+        # An empty bin means a cut has no observations on one side (common with ties).
         if np.any(cnt == 0):
             k = int(np.argmax(cnt == 0))
             edges.pop(min(k, len(edges) - 1))
             continue
+        # Size floor. The first undersized bin merges into its smaller neighbour; the two
+        # outer bins have only one neighbour, so they merge into it directly.
         small = np.where(cnt < min_bin_frac * n)[0]
         if len(small):
             k = int(small[0])
@@ -154,15 +169,20 @@ def bin_numeric(
             else:
                 edges.pop(k - 1 if cnt[k - 1] <= cnt[k + 1] else k)
             continue
+        # Reached only when every bin is populated and large enough. Goods are the count
+        # minus bads.
         woe, _ = woe_iv(cnt - bad, bad)
         if _is_monotonic(woe, direction):
             break
+        # Monotonicity repair: among the violating adjacent pairs, merge the one whose WoE
+        # values are closest, so the merge moves the bin WoE values the least.
         diffs = np.diff(woe)
         bad_pairs = np.where(diffs >= 0)[0] if direction > 0 else np.where(diffs <= 0)[0]
         # merge the violating adjacent pair whose WoE values are closest
         k = int(bad_pairs[np.argmin(np.abs(diffs[bad_pairs]))])
         edges.pop(k)
 
+    # Final counts for the surviving cuts; WoE and IV are stored from this pass.
     cnt, bad = stats(edges)
     woe, iv = woe_iv(cnt - bad, bad)
     e = np.asarray(edges, dtype=float)
@@ -193,8 +213,11 @@ def bin_categorical(
     x: pd.Series, y: pd.Series, feature: str, min_bin_frac: float = CATEGORICAL_MIN_BIN_FRAC
 ) -> FeatureBinning:
     """One bin per level (riskiest first), with levels rarer than ``min_bin_frac`` pooled."""
+    # Strings on both sides, so level keys match the category_map used at transform time.
     xs = pd.Series(np.asarray(x, dtype=object)).astype(str)
     freq = xs.value_counts(normalize=True)
+    # Rare levels are pooled into __OTHER__ before WoE is computed, so a near-empty
+    # level cannot produce an extreme WoE.
     sparse = set(freq[freq < min_bin_frac].index)
     grouped = xs.where(~xs.isin(sparse), OTHER)
     yv = pd.Series(np.asarray(y, dtype=int))
@@ -203,6 +226,8 @@ def bin_categorical(
     order = np.argsort(woe)  # riskiest first for readability
     levels = [str(v) for v in agg.index.to_numpy()[order]]
     bin_of_level = {lvl: i for i, lvl in enumerate(levels)}
+    # Every observed level maps to a bin; pooled levels map to the __OTHER__ bin, so
+    # transform sees exactly the bins that fit produced.
     category_map = dict(bin_of_level)
     for lvl in sparse:
         category_map[lvl] = bin_of_level[OTHER]

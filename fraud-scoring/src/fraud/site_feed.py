@@ -11,6 +11,7 @@ from typing import Any
 
 def site_json(m: dict[str, Any]) -> dict[str, Any]:
     """Build the site feed entry for this project."""
+    # Every number on the page is read from the metrics dict, never typed in by hand.
     mr = m["models"]
     sv = m["decisioning"]["savings"]
     lat = m["latency"]["in_process_production"]
@@ -72,6 +73,7 @@ def site_json(m: dict[str, Any]) -> dict[str, Any]:
             "FastAPI /score returns score, decision, reason codes and model version; trees "
             "are compiled to flat arrays for sub-millisecond online inference.",
         ],
+        # Limitations sit beside the claims so the page does not overstate the results.
         "limitations": [
             "Synthetic data: fraud patterns are designed, so absolute scores flatter the model "
             "compared with a real portfolio.",

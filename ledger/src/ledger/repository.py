@@ -63,6 +63,7 @@ def load_account(conn: sqlite3.Connection, account_id: str) -> sqlite3.Row:
 
 def load_accounts(conn: sqlite3.Connection, ids: Sequence[str]) -> dict[str, sqlite3.Row]:
     """Load several accounts by id; raises for the first missing id in sorted order."""
+    # Deduplicate and sort, so the error for a missing id always names the same account.
     uniq = sorted(set(ids))
     rows = conn.execute(
         f"SELECT * FROM accounts WHERE id IN ({_placeholders(len(uniq))})", uniq
@@ -104,6 +105,8 @@ def account_activity_rows(
         "WHERE p.account_id = ?"
     )
     args: list[Any] = [account_id]
+    # Filter on effective_date, not created_at: a backdated entry belongs to the period it
+    # describes.
     if start:
         sql += " AND e.effective_date >= ?"
         args.append(start)
@@ -151,6 +154,8 @@ def insert_entry(
 
 def entry_is_balanced_in_db(conn: sqlite3.Connection, entry_id: str) -> bool:
     """Re-check per-currency balance from the rows that actually hit the table."""
+    # SUM over the stored rows, not the Python inputs, so this checks what actually reached the
+    # table.
     unbalanced = conn.execute(
         "SELECT currency FROM postings WHERE entry_id = ? GROUP BY currency "
         "HAVING SUM(CASE direction WHEN 'debit' THEN amount ELSE -amount END) <> 0",
@@ -242,11 +247,15 @@ def entry_page_rows(
     conn: sqlite3.Connection, *, account_id: str | None, cursor: int | None, fetch: int
 ) -> list[sqlite3.Row]:
     """Up to ``fetch`` entries newest first, keyset-paginated on ``seq < cursor``."""
+    # The 1 = 1 base lets each optional filter start with AND, so none of them needs special
+    # handling.
     sql = "SELECT * FROM entries WHERE 1 = 1"
     args: list[Any] = []
     if account_id is not None:
         sql += " AND id IN (SELECT entry_id FROM postings WHERE account_id = ?)"
         args.append(account_id)
+    # Keyset pagination on seq: only rows older than the cursor. Unlike OFFSET, new inserts cannot
+    # shift the page.
     if cursor is not None:
         sql += " AND seq < ?"
         args.append(cursor)
@@ -310,6 +319,7 @@ def update_payment_status(
 ) -> bool:
     """Compare-and-set the payment's status; ``False`` if it was no longer ``current``."""
     cur = conn.execute(
+        # COALESCE keeps the stored ids and reason when a transition does not supply one.
         "UPDATE payments SET status = ?, updated_at = ?, entry_id = COALESCE(?, entry_id), "
         "reversal_entry_id = COALESCE(?, reversal_entry_id), "
         "failure_reason = COALESCE(?, failure_reason) "
@@ -324,6 +334,8 @@ def update_payment_status(
             current.value,
         ),
     )
+    # The WHERE status = ? makes this a compare-and-set. Zero rows updated means another writer
+    # moved the payment first.
     return cur.rowcount == 1
 
 

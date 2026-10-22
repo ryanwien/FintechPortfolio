@@ -71,10 +71,15 @@ class Ledger:
         the rebate over the taker fee. ``mid_x2`` is the pre-trade mid (bid + ask), used only
         for the frictionless ledger.
         """
+        # Cash moves opposite to position: buying spends cash, selling collects it.
         sgn = 1 if buy else -1
         self.position += sgn * qty
         self.cash -= sgn * qty * price * UNITS_PER_TICK
+        # The same fill valued at the pre-trade mid. The gap to cash is exactly the spread/slippage
+        # component of the decomposition.
         self.cash_mid -= sgn * qty * mid_x2 * UNITS_PER_HALF_TICK
+        # Makers earn a rebate and takers pay a fee. Both go into fee_pnl, keeping the decomposition
+        # additive.
         self.fee_pnl += qty * self.fees.maker_rebate if maker else -qty * self.fees.taker_fee
         self.filled_qty += qty
         self.maker_qty += qty if maker else 0
@@ -127,6 +132,7 @@ def run_backtest(
     ledger = Ledger(fees or FeeSchedule())
     res = BacktestResult(strategy=strategy.name, steps=steps, ledger=ledger)
     me = strategy.owner
+    # Mids are doubled (bid + ask) so this starting value has the same units as mid_now().
     mid_x2 = 2 * cfg.start_price
     owner_of: dict[int, int] = {}  # order id -> owner, for every acked order
 
@@ -137,26 +143,35 @@ def run_backtest(
 
     def execute(cmd: Command) -> list[Event]:
         """Send ``cmd`` to the engine and book anything that concerns the strategy."""
+        # Fills are marked against the mid just before this command: the frictionless benchmark.
         pre_mid = mid_now()
         evs = eng.process(cmd)
         for e in evs:
             t = type(e)
             if t is Fill:
+                # A fill has one taker and one maker. Each side is booked only if it is ours: the
+                # taker pays the fee, the maker earns the rebate.
                 if e.taker_owner == me:
                     ledger.on_fill(e.aggressor is Side.BUY, e.price, e.qty, False, pre_mid)
                 if e.maker_owner == me:
                     ledger.on_fill(e.aggressor is Side.SELL, e.price, e.qty, True, pre_mid)
             elif t is Ack and e.owner == me:
                 res.offered_qty += e.qty
+            # A requeued replace puts our new size back in the queue, so it is offered again. A
+            # priority-kept size decrease offers nothing new.
             elif t is Replaced and not e.priority_kept and owner_of.get(e.order_id) == me:
                 res.offered_qty += e.new_qty
             elif t is Booked and owner_of.get(e.order_id) == me:
+                # Sample queue position at the moment we join: the shares ahead of us must trade
+                # before we can fill.
                 res.queue_ahead_samples.append(eng.queue_ahead(e.order_id))
+            # Remember which strategy owns each order id, so later events can be attributed to us.
             if t is Ack:
                 owner_of[e.order_id] = e.owner
         return evs
 
     market = BackgroundMarket(eng, cfg, execute)
+    # Seed the book before the first decision so the strategy has a top of book at t=0.
     market.seed_book()
     gw = Gateway(eng)
     pending: list[Command] = []
@@ -164,6 +179,8 @@ def run_backtest(
     regimes: dict[str, int] = {}
     fund = market.fund
 
+    # Per step: background flow, then our orders decided last step (one step of latency), then mark
+    # to mid and decide the next orders.
     for t in range(steps):
         market.step(t)
         regimes[fund.regime] = regimes.get(fund.regime, 0) + 1
@@ -174,12 +191,15 @@ def run_backtest(
         res.net_equity.append(ledger.net(mid_x2))
         res.frictionless_equity.append(ledger.frictionless(mid_x2))
         res.positions.append(ledger.position)
+        # The strategy sees only L2 up to this step, including its own resting orders.
         bids, asks = eng.l2(depth=VIEW_DEPTH)
         view = View(t, bids, asks, mids, ledger.position)
         pending = strategy.decide(view, gw)
         res.orders.extend((t, c) for c in pending)
 
     res.regime_steps = regimes
+    # Background ids come from market.next_id and every strategy command is counted. Background
+    # cancels are not, so this is an approximate command count.
     res.engine_commands = market.next_id - 1 + len(res.orders)
     res.final_mid_x2 = mid_x2
     return res
@@ -204,7 +224,9 @@ def _max_drawdown(eq: list[int]) -> int:
 
 def _sharpe(eq: list[int], steps_per_day: int) -> float:
     """Annualised Sharpe of daily equity changes (zero risk-free rate)."""
+    # Sample equity once per simulated day, at the last step of each day.
     daily = [eq[i] for i in range(steps_per_day - 1, len(eq), steps_per_day)]
+    # Daily PnL is the change between samples. The first day is measured from zero equity.
     pnl = [b - a for a, b in zip([0, *daily[:-1]], daily, strict=True)]
     if len(pnl) < 2:
         return 0.0
@@ -220,7 +242,9 @@ def summarize(res: BacktestResult, steps_per_day: int = STEPS_PER_DAY) -> dict[s
     m = res.final_mid_x2
     net = lg.net(m)
     fr = lg.frictionless(m)
+    # Integer arithmetic makes net = frictionless + spread + fees an exact identity.
     spread = lg.cash - lg.cash_mid
+    # A failure here is a ledger bug, not rounding.
     assert net == fr + spread + lg.fee_pnl  # exact integer decomposition
     pos = res.positions
     return {
@@ -249,6 +273,7 @@ def summarize(res: BacktestResult, steps_per_day: int = STEPS_PER_DAY) -> dict[s
             "mean_abs": round(statistics.fmean(abs(p) for p in pos), 1),
             "max_abs": max(abs(p) for p in pos),
         },
+        # Mean queue position over every booking of our own orders, in shares.
         "avg_queue_ahead_shares": (
             round(statistics.fmean(res.queue_ahead_samples), 1) if res.queue_ahead_samples else None
         ),
@@ -262,6 +287,7 @@ def downsample[T](xs: list[T], n: int = SERIES_POINTS) -> tuple[list[int], list[
     """At most ``n`` evenly spaced (index, value) samples, always keeping both ends."""
     if len(xs) <= n:
         return list(range(len(xs))), list(xs)
+    # Evenly spaced indices from first to last sample. Rounding keeps both ends exact.
     idx = [round(i * (len(xs) - 1) / (n - 1)) for i in range(n)]
     return idx, [xs[i] for i in idx]
 
@@ -270,6 +296,7 @@ def run_all(
     steps: int = BACKTEST_STEPS, seed: int = BACKTEST_SEED
 ) -> tuple[dict[str, Any], dict[str, BacktestResult]]:
     """Backtest every strategy on one seed: (summaries + ``config``, raw results by name)."""
+    # Both strategies share one market seed and one fee schedule, so they are comparable.
     cfg = MarketConfig(seed=seed)
     fees = FeeSchedule()
     out: dict[str, Any] = {}

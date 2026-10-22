@@ -14,6 +14,7 @@ def site_json(m: Metrics) -> Metrics:
     """Dashboard card: headline metrics, highlights, limitations and a cutoff trade-off series."""
     c, ch, f, st, dec = m["champion"], m["challenger"], m["fairness"], m["strategy"], m["decision"]
     sc = m["scaling"]
+    # Fairness headline reports the adopted variant, the same one the model card reports.
     fair = adopted_fairness(m)
     at = st["oot_at_cutoff"]
     table = st["oot_cutoff_table"]

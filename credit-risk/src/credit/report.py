@@ -73,6 +73,7 @@ def _reason_table(m: Metrics) -> str:
     aa = m["adverse_action"]
     top4 = aa["top4_reason_counts"]
     rows = []
+    # Most frequently cited codes first, so the table reads by how often each reason appears.
     for code, d in sorted(top4.items(), key=lambda kv: -kv[1]["count"]):
         prim = aa["primary_reason_counts"].get(code, {"count": 0})["count"]
         rows.append([code, d["statement"], prim, pct(prim / aa["declined_oot"]), d["count"]])

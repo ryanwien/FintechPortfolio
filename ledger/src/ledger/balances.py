@@ -51,6 +51,8 @@ def posted_index(direction: Direction) -> int:
 
 def hold_deltas(source_id: str, destination_id: str, amount: int) -> dict[str, Delta]:
     """Place an authorization hold: pending debit on source, pending credit on destination."""
+    # Index order matches the four totals above: a hold is a pending debit on the source and a
+    # pending credit on the destination.
     return {source_id: [0, 0, amount, 0], destination_id: [0, 0, 0, amount]}
 
 
@@ -83,9 +85,12 @@ def compute_balances(
     * ``available``: posted minus open *outbound* authorizations. Inbound holds
       are not spendable until they post. This is the number overdraft rules use.
     """
+    # Credit-normal accounts use the mirror-image formulas, so each figure is measured in the
+    # account's normal direction.
     if AccountType(account_type).normal_side is Direction.DEBIT:
         posted = posted_debits - posted_credits
         pending = posted + pending_debits - pending_credits
+        # Inbound holds are not spendable until they post, so they are left out of available.
         available = posted - pending_credits
     else:
         posted = posted_credits - posted_debits
@@ -106,26 +111,39 @@ def apply_deltas(
     run per account in sorted id order; when one fails, the caller's transaction
     rolls back the updates already made to earlier accounts.
     """
+    # Sorted id order is the lock order the module promises. It costs nothing now and keeps
+    # overlapping writers in step if this moves to row locks.
     for acct_id in sorted(deltas):
         row = accounts[acct_id]
         delta = deltas[acct_id]
+        # Optional caller check: fail if the account changed since the caller last read it.
         expected = (expected_lock_versions or {}).get(acct_id)
         if expected is not None and expected != row["lock_version"]:
             raise ConcurrencyConflictError(
                 f"account {acct_id} is at lock_version {row['lock_version']}, expected {expected}"
             )
+        # Every check for this account runs before its UPDATE. An earlier account may already be
+        # updated when a later one fails, and the caller's rollback undoes that.
         old = row_totals(row)
         new = tuple(o + x for o, x in zip(old, delta, strict=True))
+        # A negative total means more was released than was held. Raising a ValidationError here
+        # gives the caller a clear error instead of a CHECK constraint failure.
         if min(new) < 0:
             raise ValidationError(f"account {acct_id} totals would go negative (hold over-release)")
+        # The overdraft rule reads the available balance, which already reflects open outbound
+        # holds.
         if not row["allow_negative"]:
             before = compute_balances(row["type"], *old)["available"]
             after = compute_balances(row["type"], *new)["available"]
+            # Refuse only moves that push a negative balance lower. A move that improves it is
+            # allowed through.
             if after < 0 and after < before:
                 raise InsufficientFundsError(
                     f"account {acct_id} has available balance {before} {row['currency']}; "
                     f"operation would take it to {after}"
                 )
+        # Compare-and-set on lock_version. BEGIN IMMEDIATE should make the match always succeed; the
+        # WHERE clause guards against any writer that bypasses it.
         cur = conn.execute(
             "UPDATE accounts SET posted_debits = ?, posted_credits = ?, pending_debits = ?, "
             "pending_credits = ?, lock_version = lock_version + 1 "

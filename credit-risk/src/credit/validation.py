@@ -70,11 +70,17 @@ def evaluate_scorecard(
     econ: UnitEconomics,
 ) -> ScorecardEvaluation:
     """Score all samples, pick the profit cutoff on the holdout and evaluate it out of time."""
+    # Scores drive approval and the cutoff search; PDs feed discrimination and profit.
     s_tr, s_te, s_oot = sc.score(dev_tr), sc.score(dev_te), sc.score(oot)
     pd_te, pd_oot = sc.predict_pd(dev_te), sc.predict_pd(oot)
+    # The search runs on the in-time holdout. Its realised-loss columns use holdout
+    # outcomes, but the cutoff is picked on expected profit, so no OOT outcome informs it.
     search = cutoff_table(s_te, pd_te, dev_te[TARGET], loan_cents(dev_te), SEARCH_CUTOFFS, econ)
+    # Highest expected profit wins; exact ties go to the stricter (higher) cutoff.
     cutoff = profit_maximising_cutoff(search)
+    # Same rule as production: approve when score >= cutoff, applied to OOT scores only.
     approved = s_oot >= cutoff
+    # Stability compares training-window scores with OOT scores, not the holdout.
     return ScorecardEvaluation(
         features=sc.features,
         dropped_for_sign=sc.dropped_for_sign,
@@ -99,8 +105,13 @@ def evaluate_challenger(
     """Evaluate the challenger, approving the same OOT share as the champion (like-for-like)."""
     pd_te = challenger.predict_pd(dev_te)
     pd_oot = challenger.predict_pd(oot)
+    # Like-for-like: approve the same OOT share as the champion. The threshold uses OOT
+    # PDs only (features, never outcomes). Ties can move the realised rate, so it is
+    # recorded in oot_approval_rate rather than assumed.
     threshold = np.quantile(pd_oot, approval_rate)
+    # Lower PD is safer, so approval is PD at or below the quantile threshold.
     approved = pd_oot <= threshold
+    # Stability compares the challenger's training-window PDs with its OOT PDs.
     return ChallengerEvaluation(
         features=challenger.features,
         monotonic_constraints=monotonic_constraints(challenger.numeric),
@@ -117,7 +128,11 @@ def feature_iv_rows(
 ) -> list[dict[str, object]]:
     """IV, strength, coefficient and dev-vs-OOT CSI per candidate characteristic, by IV."""
     rows: list[dict[str, object]] = []
+    # IV and coefficient come from the development fit; CSI compares the development
+    # and OOT bin mix for each characteristic.
     for f, b in champion.binner.binnings.items():
+        # bin_index gives -1 for unseen categories; clip(0) folds them into bin 0 so that
+        # bincount accepts them. Both windows are counted the same way.
         dev_cnt = np.bincount(b.bin_index(dev_tr[f]).clip(0), minlength=len(b.labels))
         oot_cnt = np.bincount(b.bin_index(oot[f]).clip(0), minlength=len(b.labels))
         rows.append(
@@ -131,6 +146,7 @@ def feature_iv_rows(
                 "csi_dev_vs_oot": rnd(psi_from_counts(dev_cnt, oot_cnt)),
             }
         )
+    # Strongest characteristics first, as the report table expects.
     rows.sort(key=lambda r: -r["iv"])
     return rows
 
@@ -139,10 +155,17 @@ def adverse_action_summary(
     champion: Scorecard, oot: pd.DataFrame, scores_oot: np.ndarray, cutoff: int
 ) -> dict[str, object]:
     """Reason-code mix for OOT declines at ``cutoff`` plus a few sample notices."""
+    # Decline is the strict complement of approval (score < cutoff).
     declined = oot[scores_oot < cutoff]
+    # Reasons are computed for declined rows only. max_points is the reference from
+    # which points lost are measured.
     reasons = reason_codes(champion.points_matrix(declined), champion.max_points)
+    # Primary reason is the single largest point loss; empty lists are skipped.
+    # top4 counts every reason cited, so it can exceed the number of declines.
     primary = Counter(r[0].code for r in reasons if r)
     any_top = Counter(x.code for r in reasons for x in r)
+    # Sample notices use the first declined rows. The index of oot is positional
+    # (split_dev_oot resets it), so declined.index[i] also indexes scores_oot.
     samples = [
         {
             "application_id": int(declined.iloc[i]["application_id"]),

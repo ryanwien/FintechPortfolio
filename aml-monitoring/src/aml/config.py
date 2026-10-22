@@ -145,6 +145,8 @@ class MonitoringConfig:
 
     def fingerprint(self) -> str:
         """Short SHA-256 of every parameter (canonical JSON)."""
+        # Serialise every parameter with sorted keys, so the same settings always produce the same
+        # bytes and fingerprint.
         blob = json.dumps(asdict(self), sort_keys=True, default=list)
         return hashlib.sha256(blob.encode()).hexdigest()[:FINGERPRINT_HEX_CHARS]
 
@@ -156,23 +158,31 @@ class MonitoringConfig:
 def _apply[C](obj: C, overrides: dict[str, Any]) -> C:
     """Recursively apply JSON overrides to a frozen config dataclass."""
     changes: dict[str, Any] = {}
+    # Valid keys at this level; anything else is rejected rather than silently ignored.
     names = {f.name for f in fields(obj)}
+    # Walk the overrides one key at a time, checking each against the dataclass fields first.
     for key, value in overrides.items():
         if key not in names:
             raise UnknownConfigKeyError(f"unknown config key {key!r} for {type(obj).__name__}")
         current = getattr(obj, key)
+        # Nested sections recurse, so an override can change one threshold inside a section.
         if is_dataclass(current) and isinstance(value, dict):
             changes[key] = _apply(current, value)
         elif isinstance(current, tuple):
+            # JSON gives lists where the config uses tuples; convert them back, or equality and
+            # hashing break.
             changes[key] = tuple(tuple(v) if isinstance(v, list) else v for v in value)
         else:
             changes[key] = value
+    # Build a new frozen instance; the original config is never mutated.
     return replace(obj, **changes)
 
 
 def load_config(path: str | Path | None = None) -> MonitoringConfig:
     """Default config, optionally overridden by a JSON file of nested sections."""
     cfg = MonitoringConfig()
+    # No overrides file means the defaults are used unchanged.
     if path is None:
         return cfg
+    # The overrides file is nested JSON with the same shape as the dataclasses.
     return _apply(cfg, json.loads(Path(path).read_text(encoding="utf-8")))

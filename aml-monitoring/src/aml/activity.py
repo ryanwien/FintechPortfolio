@@ -36,6 +36,8 @@ class Activity:
 
     def finalize(self) -> None:
         """Build the timestamp index and prefix sums; call once after all flows are appended."""
+        # Build the timestamp index and prefix sums once; every window query relies on these sorted
+        # arrays.
         self.in_ts = [t.ts for t in self.inflows]
         self.out_ts = [t.ts for t in self.outflows]
         self._in_cum = _cumsum(self.inflows)
@@ -63,10 +65,14 @@ class Activity:
 def index_activity(world: World) -> dict[str, Activity]:
     """Index every customer's activity (customers in id order, flows in time order)."""
     acts: dict[str, Activity] = {cid: Activity() for cid in sorted(world.customers)}
+    # One pass in time order, so each ledger ends up sorted by time without a separate sort.
     for t in world.txns:
+        # Owner lookup returns None for external parties and cash, so only customer-side legs are
+        # indexed.
         src, dst = world.owner(t.src), world.owner(t.dst)
         if src is not None and src == dst:
             continue  # own-account transfer
+        # A payment from outside creates only an inflow for the receiving customer.
         if dst is not None:
             acts[dst].inflows.append(t)
         if src is not None:

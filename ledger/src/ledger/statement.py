@@ -76,6 +76,8 @@ def generate_statement(
     Injected discrepancies are recorded in ``Statement.injected`` as ground truth.
     """
     rates = rates or InjectionRates()
+    # One RNG drives every random choice, in a fixed call order, so the same items and seed give the
+    # same statement.
     rng = random.Random(seed)
     ordered = sorted(items, key=lambda i: (i.date, i.ref or "", i.amount))
     n = len(ordered)
@@ -88,6 +90,8 @@ def generate_statement(
         out, idx[:] = idx[:k], idx[k:]
         return out
 
+    # Each break kind draws from the shared shuffled pool, so no ledger item receives two injected
+    # breaks.
     missing = take(rates.missing_in_bank)
     mismatch = take(rates.amount_mismatch)
     timing = take(rates.timing)
@@ -96,6 +100,8 @@ def generate_statement(
 
     raw: list[tuple[str, int, str, str | None, str]] = []  # date, amount, ccy, ref, description
     injected: list[InjectedBreak] = []
+    # Missing items get no bank line: the loop below skips them, and their ground truth is recorded
+    # just after.
     skip = set(missing)
     for i in missing:
         injected.append(InjectedBreak(Recon.MISSING_IN_BANK, str(ordered[i].ref)))
@@ -113,19 +119,28 @@ def generate_statement(
             injected.append(InjectedBreak(Recon.TIMING, str(ref)))
         elif pos in stripped:
             lag = rng.choice((0, 0, *range(1, rates.stripped_max_lag_days + 1)))
+            # A late stripped line is a real timing break only when its lag exceeds the matcher's
+            # date tolerance.
             if lag > rates.date_tolerance_days:
                 injected.append(InjectedBreak(Recon.TIMING, str(ref)))
+            # Dropping the reference pushes this line onto the amount-and-date pass of the matcher.
             ref, desc = None, desc + " (memo truncated)"
             d = _shift(d, lag)
         raw.append((d, amt, it.currency, ref, desc))
+        # The copy follows the original with the same reference, so the matcher sees that reference
+        # twice.
         if pos in duplicate:
             raw.append((d, amt, it.currency, ref, desc + " (resubmitted)"))
             injected.append(InjectedBreak(Recon.DUPLICATE, str(ref)))
 
+    # Bank-only lines are spread across the span of the ledger activity, so they look like plausible
+    # noise rather than out-of-period lines.
     first = ordered[0].date if ordered else EMPTY_STATEMENT_DATE
     last = ordered[-1].date if ordered else EMPTY_STATEMENT_DATE
     span = (date.fromisoformat(last) - date.fromisoformat(first)).days
     ccy = ordered[0].currency if ordered else EMPTY_STATEMENT_CURRENCY
+    # Bank-only lines are a fixed share of the ledger size, not an independent draw. Their positions
+    # are tracked so they can be flagged as ground truth later.
     bank_only: list[int] = []
     for _ in range(round(rates.missing_in_ledger * n)):
         if rng.random() < BANK_FEE_PROBABILITY:
@@ -136,12 +151,14 @@ def generate_statement(
         raw.append((_shift(first, rng.randint(0, span)), amt, ccy, None, desc))
         bank_only.append(len(raw) - 1)
 
+    # Sort by date. The raw index breaks ties, so line ids come out the same on every run.
     order = sorted(range(len(raw)), key=lambda k: (raw[k][0], k))
     lines: list[BankLine] = []
     for line_no, k in enumerate(order, start=1):
         d, amt, c, ref, desc = raw[k]
         line = BankLine(f"BL-{line_no:06d}", d, amt, c, ref, desc)
         lines.append(line)
+        # Line ids exist only after sorting, so bank-only ground truth is recorded here.
         if k in bank_only:
             injected.append(InjectedBreak(Recon.MISSING_IN_LEDGER, line.line_id))
     return Statement(lines=lines, injected=injected)

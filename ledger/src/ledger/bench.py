@@ -69,6 +69,8 @@ LATENCY_DECIMALS: Final = 3
 def pct(values: list[float], p: float) -> float:
     """Nearest-rank percentile."""
     s = sorted(values)
+    # Nearest rank: the ceil(p% of n)-th smallest value, clamped so that p=0 and p=100 stay in
+    # range.
     k = max(0, min(len(s) - 1, math.ceil(p / 100 * len(s)) - 1))
     return s[k]
 
@@ -84,6 +86,8 @@ def _fund(ledger: Ledger, n: int) -> tuple[str, list[str]]:
     wallets = []
     for i in range(n):
         w = ledger.create_account(f"wallet-{i}", "liability", BENCH_CURRENCY)["id"]
+        # One balanced entry per wallet: the bank's debit and the wallet's credit net to zero in one
+        # write.
         ledger.post_entry(
             [
                 PostingSpec(bank, Direction.DEBIT, FUNDING, BENCH_CURRENCY),
@@ -101,22 +105,32 @@ def transfer_load(
     """``total_ops`` idempotent transfers between random wallets from ``threads`` threads."""
     ledger = Ledger(db, synchronous=synchronous)
     _, wallets = _fund(ledger, WALLETS)
+    # Snapshot wallet totals around the run. Transfers move money between wallets but must neither
+    # create nor destroy any.
     wallet_total_before = sum(ledger.get_balance(w)["posted"] for w in wallets)
+    # Integer division drops any remainder. The reported count comes from the latencies actually
+    # recorded, so it stays honest.
     per_thread = total_ops // threads
     latencies: list[list[float]] = [[] for _ in range(threads)]
     errors: list[BaseException] = []
+    # Workers plus the main thread, so the clock starts only once every worker is ready.
     barrier = threading.Barrier(threads + 1)
 
     def worker(t: int) -> None:
         """Run one thread's share of the transfers after the shared start barrier."""
+        # Seeded per thread: the workload is reproducible, and no two threads share one generator.
         rng = random.Random(BENCH_SEED + t)
         lat = latencies[t]
         try:
+            # Hold until every thread is ready, so thread start-up is not counted in latency.
             barrier.wait()
             for i in range(per_thread):
                 src, dst = rng.sample(wallets, 2)
                 amount = rng.randint(1, MAX_TRANSFER_AMOUNT)
+                # A fresh key per transfer. Every call is a first write, so replays cannot inflate
+                # the throughput figure.
                 key = IdempotencyKey(f"bench-{t}-{i}")
+                # Time only the service call, not the RNG draws or the key construction.
                 t0 = time.perf_counter_ns()
                 ledger.create_payment(src, dst, amount, BENCH_CURRENCY, idempotency=key)
                 lat.append((time.perf_counter_ns() - t0) / NS_PER_MS)
@@ -126,6 +140,7 @@ def transfer_load(
     pool = [threading.Thread(target=worker, args=(t,)) for t in range(threads)]
     for th in pool:
         th.start()
+    # Release the workers together, then start the wall clock.
     barrier.wait()
     t0 = time.perf_counter()
     for th in pool:
@@ -134,9 +149,11 @@ def transfer_load(
     if errors:
         raise errors[0]
     flat = [x for lat in latencies for x in lat]
+    # Check the invariants once every thread has finished, on the settled state.
     check = ledger.verify()
     wallet_total_after = sum(ledger.get_balance(w)["posted"] for w in wallets)
     ledger.close()
+    # Count the transfers that completed, from the recorded latencies.
     ops = len(flat)
     return {
         "threads": threads,
@@ -173,6 +190,7 @@ def lifecycle_and_replay(db: Path, n: int) -> dict[str, Any]:
         auth.append((t1 - t0) / NS_PER_MS)
         cap.append((t2 - t1) / NS_PER_MS)
 
+    # Keep each key with its request, so the replay phase can resend the identical call.
     keys = []
     for i in range(n):
         src, dst = rng.sample(wallets, 2)
@@ -181,6 +199,8 @@ def lifecycle_and_replay(db: Path, n: int) -> dict[str, Any]:
         ledger.create_payment(src, dst, REPLAY_AMOUNT, BENCH_CURRENCY, idempotency=k)
         fresh.append((time.perf_counter_ns() - t0) / NS_PER_MS)
         keys.append((src, dst, k.key))
+    # Count replays the ledger served from its store (k.replayed is set on a hit), not
+    # re-executions.
     replayed = 0
     for src, dst, key in keys:
         k = IdempotencyKey(key)
@@ -190,6 +210,8 @@ def lifecycle_and_replay(db: Path, n: int) -> dict[str, Any]:
         replayed += k.replayed
 
     # Overdraft rule under load: try to drain one wallet with many holds.
+    # Overdraft probe. Ten holds of one seventh of the balance add up to more than the balance, so
+    # some of them must be refused.
     victim = wallets[0]
     chunk = ledger.get_balance(victim)["available"] // OVERDRAFT_HOLD_FRACTION
     accepted = rejected = 0
@@ -225,15 +247,19 @@ def recon_run(
     t0 = time.perf_counter()
     sc = build_settlement_scenario(ledger, days=days, movements_per_day=per_day)
     build_s = time.perf_counter() - t0
+    # The cash account's view (+ means cash in) is the side the bank statement describes.
     activity = ledger.account_activity(sc.cash_account_id, start=sc.start, end=sc.end)
     items = ledger_items_from_activity(activity)
+    # The same items and seed always produce the same statement, so the scoring is repeatable.
     stmt = generate_statement(items, seed=seed, rates=rates)
+    # Time only the matcher, excluding statement generation.
     t1 = time.perf_counter()
     report = reconcile(items, stmt.lines)
     recon_s = time.perf_counter() - t1
     ok = ledger.verify()["ok"]
     ledger.close()
     example: dict[str, Any] = {}
+    # One representative break per kind, the first one found, for the report.
     for b in report.breaks:
         example.setdefault(b.kind.value, b.to_dict())
     return {
@@ -260,6 +286,8 @@ def _headline(
     stress: dict[str, Any],
 ) -> dict[str, Any]:
     """Reduce the full run to the flat headline figures stored in metrics.json."""
+    # The first concurrency level is the single-thread run, and the headline latency is taken from
+    # it.
     single = by_conc[0]
     return {
         "transfer_p50_ms": single["latency_ms"]["p50"],
@@ -287,10 +315,13 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--quick", action="store_true")
     args = ap.parse_args(argv)
+    # --quick shrinks the workloads only. The seeds are unchanged, so a quick run is still
+    # deterministic.
     total = TRANSFERS_PER_LEVEL_QUICK if args.quick else TRANSFERS_PER_LEVEL
     levels = THREAD_LEVELS_QUICK if args.quick else THREAD_LEVELS
     per_day = RECON_MOVEMENTS_PER_DAY_QUICK if args.quick else RECON_MOVEMENTS_PER_DAY
     with tempfile.TemporaryDirectory() as tmp:
+        # The databases are scratch files. Only the rendered outputs written to results/ are kept.
         tmpd = Path(tmp)
         by_conc = []
         for c in levels:
@@ -300,6 +331,8 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
                 f"p99={r['latency_ms']['p99']}ms ok={r['invariants_ok'] and r['money_conserved']}"
             )
             by_conc.append(r)
+        # The same single-thread load with fsync only at checkpoints, to show what fsync on every
+        # commit costs.
         normal = transfer_load(tmpd / "load-normal.db", 1, total, synchronous="NORMAL")
         lifecycle = lifecycle_and_replay(
             tmpd / "lifecycle.db", LIFECYCLE_OPS_QUICK if args.quick else LIFECYCLE_OPS

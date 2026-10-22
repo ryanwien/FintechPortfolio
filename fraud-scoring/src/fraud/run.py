@@ -59,10 +59,12 @@ class StageTimer:
     @contextmanager
     def __call__(self, name: str) -> Iterator[None]:
         """Time the enclosed block and store its wall-clock seconds under ``name``."""
+        # perf_counter is monotonic, so the measured duration is immune to clock changes.
         t0 = time.perf_counter()
         try:
             yield
         finally:
+            # Recorded in finally, so a stage that raises still leaves its timing behind.
             self.seconds[name] = time.perf_counter() - t0
 
 
@@ -83,6 +85,7 @@ def main() -> dict[str, Any]:
     with stage("simulate"):
         df = simulate(cfg)
         labels = label_events(df)
+    # Pull columns into plain numpy once; every metric below works on these arrays and masks.
     period = df["period"].to_numpy()
     y = df["is_fraud"].to_numpy().astype(np.int64)
     amount = df["amount_cents"].to_numpy().astype(np.int64)
@@ -92,6 +95,7 @@ def main() -> dict[str, Any]:
 
     # ---------------------------------------------------------------- features (batch replay)
     with stage("features_batch"):
+        # Replays the event stream in serving order, so these are point-in-time features.
         X = build_features(df, labels)
     feat_secs = stage.seconds["features_batch"]
     print(f"features {X.shape} in {feat_secs:.1f}s")
@@ -102,6 +106,7 @@ def main() -> dict[str, Any]:
     y_known = ((y == 1) & (label_ts <= cutoff)).astype(np.int64)
     train_fraud = int(y[masks.train].sum())
     train_known = int(y_known[masks.train].sum())
+    # Chargeback delay in days, fraud rows only; feeds the label-delay stats in the report.
     delays = (label_ts - df["ts"].to_numpy())[y == 1] / DAY
 
     # ---------------------------------------------------------------- models
@@ -111,6 +116,7 @@ def main() -> dict[str, Any]:
         lr = train_logreg(X[masks.train], y_known[masks.train])
     print(f"trained; model version {hgb.version}")
 
+    # Score every row once; the split masks pick out each evaluation window afterwards.
     scores = {
         "hgb": hgb.predict(X),
         "logreg": lr.predict_proba(X)[:, 1],
@@ -120,6 +126,7 @@ def main() -> dict[str, Any]:
     by_type = recall_by_fraud_type(scores, ftype, masks, reports)
 
     # ---------------------------------------------------------------- decisioning
+    # Bands are chosen on validation inside decide_per_model, then frozen for later months.
     decisions = decide_per_model(scores, y, amount, masks, cost_cfg)
     loss_savings = savings(decisions, y, amount, masks, n_test_months=len(split.test))
     series = validation_decline_curve(scores["hgb"], y, amount, masks, cost_cfg)
@@ -128,19 +135,23 @@ def main() -> dict[str, Any]:
     drift = drift_report(X, scores["hgb"], y, masks)
 
     # ---------------------------------------------------------------- online replay
+    # Transaction ids where the timed test window and the shifted month begin.
     test_start = int(df.loc[masks.test, "txn_id"].min())
     shift_start = int(df.loc[masks.shifted, "txn_id"].min())
     with stage("online_replay"):
         online = replay_in_process(
             df, labels, hgb, Bands(**decisions["hgb"]["bands"]), test_start, shift_start
         )
+    # Train/serve skew check: online features and scores must match batch values on every row.
     feat_diff = float(np.max(np.abs(online.features - X)))
     idx = np.array(sorted(online.scores))
     online_s = np.array([online.scores[i] for i in idx])
     score_diff = float(np.max(np.abs(online_s - scores["hgb"][idx])))
+    # Save the scorer with its warmed state, so the API starts with history up to stream end.
     online.scorer.save(SCORER_ARTIFACT)
 
     with stage("http_replay"):
+        # Second path: the same serving logic through the FastAPI app, with JSON in the loop.
         http = replay_http(
             df,
             labels,
@@ -219,6 +230,7 @@ def main() -> dict[str, Any]:
         "series": series,
     }
 
+    # All three outputs are written from the same metrics dict, so they cannot disagree.
     RESULTS_DIR.mkdir(exist_ok=True)
     _write_json(RESULTS_DIR / "metrics.json", metrics)
     (RESULTS_DIR / "REPORT.md").write_text(render_report(metrics), encoding="utf-8")

@@ -62,6 +62,7 @@ def describe(feature: str, value: float, reference: float) -> str:
     if feature == "mcc":
         code = int(MCC_CODES[int(value)]) if 0 <= value < len(MCC_CODES) else -1
         return f"{label}: {MCCS[code][0] if code in MCCS else 'unknown'} ({code})"
+    # Binary flags read as 'this happened' or 'it did not', not as high or low.
     if feature in ("new_merchant", "new_device"):
         return label if value > 0 else f"{label}: no"
     return f"{label}: {'high' if value > reference else 'low'}"
@@ -75,6 +76,7 @@ def _logit(p: np.ndarray) -> np.ndarray:
 
 def train_hgb(X: np.ndarray, y: np.ndarray) -> HistGradientBoostingClassifier:
     """Fit the production model; ``mcc`` is a native categorical feature."""
+    # Tell sklearn which columns are categorical so it splits on category sets, not code order.
     cat = np.array([f in CATEGORICAL for f in FEATURES])
     model = HistGradientBoostingClassifier(categorical_features=cat, **HGB_PARAMS)
     model.fit(X, y)
@@ -83,6 +85,7 @@ def train_hgb(X: np.ndarray, y: np.ndarray) -> HistGradientBoostingClassifier:
 
 def train_logreg(X: np.ndarray, y: np.ndarray) -> Pipeline:
     """Fit the baseline: standardised numerics + one-hot MCC into logistic regression."""
+    # Trees need no scaling but the linear model does: scale numerics, one-hot the category.
     num = [i for i, f in enumerate(FEATURES) if f not in CATEGORICAL]
     cat = [F_INDEX[f] for f in CATEGORICAL]
     pre = ColumnTransformer(
@@ -119,12 +122,15 @@ class FraudModel:
         The reference is the per-feature median of good transactions (the modal MCC for the
         categorical one).
         """
+        # Reference row is the per-feature median of good traffic; reasons swap features toward it.
         est = train_hgb(X, y)
         good = X[y == 0]
         ref = np.median(good, axis=0)
+        # A median of category codes means nothing, so the reference is the most common good one.
         mcc_j = F_INDEX["mcc"]
         vals, counts = np.unique(good[:, mcc_j], return_counts=True)
         ref[mcc_j] = vals[np.argmax(counts)]
+        # Version hashes params, features, data shape and a score checksum: same inputs, same id.
         fingerprint = json.dumps(
             {
                 "params": HGB_PARAMS,
@@ -132,6 +138,7 @@ class FraudModel:
                 "n": len(y),
                 "pos": int(y.sum()),
                 "through": int(trained_through_ts),
+                # Checksum of a training-score prefix: catches a silently changed fitted model.
                 "train_score_sum": round(
                     float(est.predict_proba(X[:FINGERPRINT_ROWS])[:, 1].sum()), 6
                 ),
@@ -159,14 +166,19 @@ class FraudModel:
         typical good transaction). All perturbed rows go through one batched tree walk.
         Only features that push the score *up* are returned.
         """
+        # One perturbed row per feature, so every contribution comes from one batched walk.
         n_f = len(x)
         batch = np.repeat(x[None, :], n_f, axis=0)
+        # Row j resets only feature j to its reference value; the other features keep actual values.
         batch[np.arange(n_f), np.arange(n_f)] = self.reference
         p = self.predict_online(batch)
+        # Positive contrib: a typical value here would lower the score, so the real one raised it.
         contrib = _logit(np.array([score]))[0] - _logit(p)
+        # Largest push first; the top reasons are the features that moved the score the most.
         order = np.argsort(-contrib, kind="stable")
         out: list[dict[str, Any]] = []
         for j in order[:top_k]:
+            # Sorted descending: once one feature stops pushing up, the rest will not either.
             if contrib[j] <= 0:
                 break
             name = FEATURES[j]

@@ -32,12 +32,16 @@ def _seed_robustness(primary: Metrics, steps: int) -> Metrics:
     """Re-run the backtest on every robustness seed (reusing the primary run) and summarise."""
     rows_by_strategy: dict[str, list[dict[str, float]]] = {}
     for seed in ROBUSTNESS_SEEDS:
+        # The first seed is the primary run already computed, so it is reused, not simulated twice.
         out = primary if seed == ROBUSTNESS_SEEDS[0] else run_all(steps, seed)[0]
         for name in STRATEGIES:
+            # Keep the seed beside its fields so each row in metrics.json is self-describing.
             row = {"seed": seed} | {k: out[name][k] for k in ROBUSTNESS_FIELDS}
             rows_by_strategy.setdefault(name, []).append(row)
     return {
         name: {
+            # Sign counts show whether a result holds on every seed. A strategy that is only
+            # profitable on one seed shows a low count here.
             "seeds": len(rows),
             "net_positive_seeds": sum(r["net_pnl_usd"] > 0 for r in rows),
             "costs_ignored_positive_seeds": sum(r["costs_ignored_pnl_usd"] > 0 for r in rows),
@@ -55,6 +59,7 @@ def _equity_series(raw: dict[str, BacktestResult]) -> Metrics:
     """Downsampled net and costs-ignored equity curves in USD, per strategy."""
     series = {}
     for name, r in raw.items():
+        # Both curves have the same length, so the two downsampled index grids line up.
         x, net = downsample(r.net_equity)
         _, fr = downsample(r.frictionless_equity)
         series[name] = {
@@ -69,8 +74,11 @@ def build(n_orders: int, steps: int) -> Metrics:
     """Run everything and return the full metrics dict (what metrics.json contains)."""
     t0 = time.perf_counter()
     bench = run_bench(n_orders)
+    # Benchmark wall time only: the backtests that follow are not part of it.
     t_bench = time.perf_counter() - t0
 
+    # One pass returns both the summaries and the raw series, so the equity curves need no second
+    # simulation.
     primary, raw = run_all(steps, ROBUSTNESS_SEEDS[0])
     robustness = _seed_robustness(primary, steps)
 

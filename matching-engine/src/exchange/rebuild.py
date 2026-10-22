@@ -18,6 +18,8 @@ from .types import Ack, Booked, Cancelled, Command, Event, Fill, Replaced, Side
 def replay(journal: Iterable[Command]) -> Engine:
     """Re-run a command journal on a fresh engine (events are kept for comparison)."""
     eng = Engine(journal=True, keep_events=True)
+    # Re-run the inputs on a fresh engine. Its regenerated events are compared with the original
+    # run, which is the actual determinism check.
     for cmd in journal:
         eng.process(cmd)
     return eng
@@ -53,6 +55,8 @@ class BookBuilder:
         """
         rec = self.orders[oid]
         if rec.resting:
+            # Queues are plain lists, so remove() is a linear scan. Acceptable at this scale; the
+            # engine uses an intrusive list for the same operation.
             queue = self.book[rec.side][rec.price]
             queue.remove(oid)
             if not queue:
@@ -74,9 +78,11 @@ class BookBuilder:
     def apply(self, ev: Event) -> None:
         """Fold one engine event into the book."""
         t = type(ev)
+        # Each branch mirrors what the engine did to its own book, so the fold reproduces it.
         if t is Ack:
             self.orders[ev.order_id] = _OrderRecord(ev.owner, ev.side, ev.price or 0, ev.qty)
         elif t is Fill:
+            # A fill reduces leaves on both sides. Either side reaching zero is fully done.
             for oid in (ev.maker_id, ev.taker_id):
                 rec = self.orders[oid]
                 rec.leaves -= ev.qty
@@ -86,12 +92,15 @@ class BookBuilder:
         elif t is Booked:
             rec = self.orders[ev.order_id]
             rec.price, rec.leaves, rec.resting = ev.price, ev.qty, True
+            # Appending reproduces time priority: a newly booked order goes to the back.
             self.book[ev.side].setdefault(ev.price, []).append(ev.order_id)
         elif t is Cancelled:
             self._unrest(ev.order_id)
             del self.orders[ev.order_id]
         elif t is Replaced:
             rec = self.orders[ev.order_id]
+            # Losing priority means leaving the queue. A following Booked event, if any, re-queues
+            # it. A kept-priority event only changes size, so the order stays where it is.
             if not ev.priority_kept:
                 self._unrest(ev.order_id)
                 rec.price = ev.new_price
@@ -101,6 +110,7 @@ class BookBuilder:
         """Same shape and ordering as ``Engine.l3``."""
         for side in Side:
             levels = self.book[side]
+            # Best first (bids descending, asks ascending), matching Engine.l3 so hashes compare.
             for price in sorted(levels, reverse=side is Side.BUY):
                 orders = [
                     (oid, self.orders[oid].owner, self.orders[oid].leaves) for oid in levels[price]

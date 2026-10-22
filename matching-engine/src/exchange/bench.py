@@ -54,6 +54,8 @@ def _passive_distance(rng: random.Random) -> int:
 def synthetic_flow(n: int, seed: int = BENCH_SEED, start: int = FLOW_START_PRICE) -> list[Command]:
     """Generate ``n`` commands of realistic mixed flow around a random-walk mid."""
     rng = random.Random(seed)
+    # A shadow engine tracks which orders are live while generating, so cancels and replaces target
+    # real orders.
     shadow = Engine(journal=False)
     mid = float(start)
     cmds: list[Command] = []
@@ -71,20 +73,27 @@ def synthetic_flow(n: int, seed: int = BENCH_SEED, start: int = FLOW_START_PRICE
         return None
 
     for _ in range(n):
+        # The random-walk mid sets where passive and marketable prices land.
         mid += rng.gauss(0.0, MID_STEP_SD)
         m = round(mid)
         r = rng.random()
         side = random_side(rng)
         owner = rng.randrange(1, N_OWNERS + 1)
         cmd: Command | None = None
+        # One uniform draw r picks the command kind. Thresholds are cumulative, so each branch owns
+        # one band of r.
         if r < P_PASSIVE_ADD:
             oid += 1
             dist = _passive_distance(rng)
+            # The top slice of the passive band becomes post-only, so the flow includes orders that
+            # must never take liquidity.
             otype = OrdType.POST_ONLY if r > P_POST_ONLY_FROM else OrdType.LIMIT
             qty = LOT * rng.randint(1, PASSIVE_MAX_LOTS)
             cmd = NewOrder(oid, owner, side, otype, qty, m - side.sign * dist)
             passive.append(oid)
         elif r < P_REPLACE:
+            # Cancel and replace only act on live orders. live_passive() picks one at random and
+            # prunes dead ids on the way.
             i = live_passive()
             if i is not None:
                 target = passive[i]
@@ -93,6 +102,8 @@ def synthetic_flow(n: int, seed: int = BENCH_SEED, start: int = FLOW_START_PRICE
                     passive.pop()
                     cmd = Cancel(target)
                 else:  # cancel/replace to a new price and size on the same side
+                    # The replace keeps the live order's side and gets a fresh price distance and
+                    # size.
                     state = shadow.order_state(target)
                     assert state is not None
                     dist = _passive_distance(rng)
@@ -101,8 +112,12 @@ def synthetic_flow(n: int, seed: int = BENCH_SEED, start: int = FLOW_START_PRICE
         if cmd is None:  # marketable flow (also the fallback when nothing is live)
             oid += 1
             qty = LOT * rng.randint(1, MARKETABLE_MAX_LOTS)
+            # Marketable prices sit up to MARKETABLE_MAX_THROUGH ticks past the mid. Whether they
+            # trade depends on the live touch.
             px = m + side.sign * rng.randint(0, MARKETABLE_MAX_THROUGH)
             u = rng.random()
+            # A second draw u picks the marketable type. A LIMIT that does not fully cross rests, so
+            # it is tracked as a passive candidate.
             if u < P_MARKETABLE_LIMIT:
                 cmd = NewOrder(oid, owner, side, OrdType.LIMIT, qty, px)
                 passive.append(oid)
@@ -112,6 +127,7 @@ def synthetic_flow(n: int, seed: int = BENCH_SEED, start: int = FLOW_START_PRICE
                 cmd = NewOrder(oid, owner, side, OrdType.MARKET, qty)
             else:
                 cmd = NewOrder(oid, owner, side, OrdType.FOK, qty, px)
+        # Advance the shadow book so the next cancel or replace sees the true live state.
         shadow.process(cmd)
         cmds.append(cmd)
     return cmds
@@ -149,6 +165,7 @@ def run_bench(
         t0 = time.perf_counter()
         for c in flow:
             proc(c)
+        # Only the flow loop is timed. Engine construction and gc setup happen outside the window.
         rates.append(n_orders / (time.perf_counter() - t0))
         gc.enable()
         del eng, proc
@@ -163,12 +180,14 @@ def run_bench(
     gc.collect()
     gc.disable()
     for i, c in enumerate(flow):
+        # Time the process() call alone, with the journal on, so journaling is included.
         t0 = clock()
         evs = proc(c)
         lat.append(clock() - t0)
         for e in evs:
             k = type(e).__name__
             counts[k] = counts.get(k, 0) + 1
+        # Depth is sampled sparsely: depth_stats walks every level, too costly per command.
         if i % DEPTH_SAMPLE_EVERY == DEPTH_SAMPLE_EVERY - 1:
             depth_samples.append(eng.depth_stats())
     gc.enable()
@@ -187,6 +206,7 @@ def run_bench(
     return {
         "orders": n_orders,
         "seed": seed,
+        # The best run is the least disturbed one: slower runs are usually scheduler or cache noise.
         "throughput_orders_per_sec": round(max(rates)),
         "throughput_runs": [round(r) for r in rates],
         "gc_paused_in_timed_loops": True,

@@ -63,6 +63,7 @@ def fmt_date(ts: int) -> str:
 def fmt_cents(cents: int) -> str:
     """``$1,234.56`` (with a leading ``-`` for negatives)."""
     sign = "-" if cents < 0 else ""
+    # Work on the magnitude so the minus sign is placed once, in front of the dollar sign.
     cents = abs(cents)
     return f"{sign}${cents // 100:,}.{cents % 100:02d}"
 
@@ -150,6 +151,7 @@ class World:
     def truth(self) -> dict[str, str]:
         """Customer id -> typology of the first instance it belongs to."""
         out: dict[str, str] = {}
+        # A customer can sit in several instances; setdefault keeps the first typology seen.
         for inst in self.instances:
             for m in inst.members:
                 out.setdefault(m, inst.typology)
@@ -157,6 +159,7 @@ class World:
 
     def without_labels(self) -> World:
         """Copy with transaction labels, instances and look-alike buckets removed."""
+        # A stripped copy with ground-truth fields cleared, so anything run on it cannot read them.
         return World(
             customers=self.customers,
             accounts=self.accounts,

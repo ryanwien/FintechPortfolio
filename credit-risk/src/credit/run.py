@@ -68,6 +68,8 @@ WOE_DECIMALS: Final[int] = 4
 
 def main() -> Metrics:
     """Run the full pipeline, write ``results/`` and return the metrics dictionary."""
+    # Step 1: load, split out-of-time, then carve an in-time holdout from development.
+    # Holdout and OOT are scored by the fitted models; they are never used to fit them.
     econ = UnitEconomics()
     df = generate_applicants(N_APPLICANTS, seed=SEED)
     dev, oot = split_dev_oot(df)
@@ -80,8 +82,11 @@ def main() -> Metrics:
     sc_mit = Scorecard(NUMERIC_FEATURES, mitigated_cats).fit(dev_tr, dev_tr[TARGET])
     ev_full = evaluate_scorecard(sc_full, dev_tr, dev_te, oot, econ)
     ev_mit = evaluate_scorecard(sc_mit, dev_tr, dev_te, oot, econ)
+    # Cost of removing the proxy, in OOT AUC. The proxy is dropped only within
+    # PROXY_AUC_TOLERANCE, which caps the AUC price paid for removing the proxy.
     auc_cost = ev_full.oot["auc"] - ev_mit.oot["auc"]
     drop_proxy = auc_cost <= PROXY_AUC_TOLERANCE
+    # The champion and its evaluation are chosen together, so they cannot drift apart.
     champion, ev = (sc_mit, ev_mit) if drop_proxy else (sc_full, ev_full)
 
     # --- Challenger on the same permitted feature set --------------------------------
@@ -89,11 +94,17 @@ def main() -> Metrics:
     ch_cat = mitigated_cats if drop_proxy else full_cats
     challenger = Challenger(NUMERIC_FEATURES, ch_cat, seed=CHALLENGER_SEED)
     challenger.fit(dev_tr, dev_tr[TARGET])
+    # Challenger is scored at the champion's OOT approval rate, so AUC and fairness are
+    # compared at equal volume.
     ch_ev = evaluate_challenger(challenger, dev_tr, dev_te, oot, ev.oot_approval_rate)
     uplift = ch_ev.oot["auc"] - ev.oot["auc"]
+    # Adoption needs both a material OOT AUC gain and a passing four-fifths screen at
+    # matched approval.
     adopt_challenger = uplift >= CHALLENGER_MIN_UPLIFT and ch_ev.fairness["passes_four_fifths"]
 
     # --- Strategy: one pass over OOT loans for the table, the cutoff and approve-all ----
+    # One pass over OOT loans. The list is the table rows, then the selected cutoff,
+    # then approve-all, so the unpacking below relies on that order.
     *oot_table, at_cut, approve_all = cutoff_table(
         ev.scores_oot,
         ev.pd_oot,
@@ -102,9 +113,11 @@ def main() -> Metrics:
         [*TABLE_CUTOFFS, ev.cutoff, APPROVE_ALL_CUTOFF],
         econ,
     )
+    # Break-even PD, and the good:bad odds it implies, which the scaling maps to a score.
     breakeven_pd = econ.breakeven_pd
     breakeven_odds = float((1 - breakeven_pd) / breakeven_pd)
 
+    # Key order here is the published schema for metrics.json; do not reorder these keys.
     metrics: Metrics = {
         "data": _data_section(df, dev, dev_tr, dev_te, oot),
         "scaling": _scaling_section(champion.scaling),
@@ -139,6 +152,7 @@ def main() -> Metrics:
         "adverse_action": adverse_action_summary(champion, oot, ev.scores_oot, ev.cutoff),
     }
 
+    # Writes come last, after every number is final. Renderers read only the rounded dict.
     _write_results(metrics, champion, RESULTS_DIR)
     _print_summary(metrics)
     return metrics
@@ -146,6 +160,8 @@ def main() -> Metrics:
 
 def _holdout_split(dev: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Random in-time holdout of the development window (train, holdout)."""
+    # A random (not temporal) split inside development. Both halves are in-time, so this
+    # tests generalization within the window, not drift. The shared SEED keeps it fixed.
     rng = np.random.default_rng(SEED)
     holdout = rng.random(len(dev)) < HOLDOUT_FRACTION
     return dev[~holdout].reset_index(drop=True), dev[holdout].reset_index(drop=True)
@@ -190,6 +206,8 @@ def _champion_section(
     dev_tr: pd.DataFrame,
     oot: pd.DataFrame,
 ) -> Metrics:
+    # Calibration uses OOT PDs against OOT outcomes. An obs/pred ratio of 1.0 would mean
+    # the book is calibrated overall; deciles show where the error sits.
     calib = calibration_by_decile(oot[TARGET], ev.pd_oot)
     obs_rate, pred_rate = float(oot[TARGET].mean()), float(ev.pd_oot.mean())
     return {
@@ -243,6 +261,7 @@ def _write_results(metrics: Metrics, champion: Scorecard, results: Path) -> None
     """Write metrics, the points table and every rendered document under ``results``."""
     results.mkdir(parents=True, exist_ok=True)
     _write_json(results / "metrics.json", metrics)
+    # Rounding is applied to the CSV copy only; the in-memory points table keeps precision.
     champion.points_table.assign(
         woe=lambda d: d["woe"].round(WOE_DECIMALS),
         points=lambda d: d["points"].round(SCORE_DECIMALS),

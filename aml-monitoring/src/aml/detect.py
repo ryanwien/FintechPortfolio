@@ -45,13 +45,22 @@ class DetectionResult:
 def run_detection(world: World, cfg: MonitoringConfig) -> DetectionResult:
     """Run every detector over ``world`` and merge the alerts."""
     tag = cfg.tag()
+    # Index activity once; the rules and the threshold sweeps all reuse this index.
     acts = index_activity(world)
+    # Rule detectors first: one alert per customer episode per rule.
     raw = run_rules(world, acts, cfg)
+    # Cycle detection looks for value-conserving loops in the transaction graph.
     cycles = detect_cycles(world, cfg.graph)
     raw += cycle_alerts(cycles, cfg.graph, tag)
+    # Degree baselines come from the whole graph; fan-in detection compares each customer against
+    # them.
     thresholds = degree_baselines(world, cfg.graph)
     raw += detect_fans(world, acts, cfg.graph, tag, thresholds)
+    # Customers alerted so far; community grouping only expands around these.
     alerted = {a.customer_id for a in raw}
+    # Community detection runs last, because it only groups customers that an earlier detector
+    # already flagged.
     com_alerts, networks = detect_communities(world, alerted, cfg.graph, tag)
+    # Merge all detectors' output, dedupe overlapping alerts of the same rule, and stamp alert ids.
     alerts = dedupe_alerts(raw + com_alerts, cfg.scoring.alert_merge_gap_days)
     return DetectionResult(alerts, networks, cycles, thresholds, acts)

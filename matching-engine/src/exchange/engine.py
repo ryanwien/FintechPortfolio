@@ -146,8 +146,10 @@ class _BookSide:
         """The level at ``price``, created (and its key inserted) if it does not exist."""
         lvl = self.levels.get(price)
         if lvl is None:
+            # A new level's key goes into the sorted list at once, so best-price lookups stay valid.
             lvl = _Level(price)
             self.levels[price] = lvl
+            # Keys are price * sign, so insort keeps the list best-last with no comparator.
             insort(self.keys, price * self.sign)
         return lvl
 
@@ -171,6 +173,7 @@ class _BookSide:
 def hash_book(levels: Iterable[tuple[int, int, Iterable[tuple[int, int, int]]]]) -> str:
     """Canonical hash of an L3 book: (side, price, [(order_id, owner, qty), ...]) best-first."""
     h = hashlib.sha256()
+    # Separators make the encoding unambiguous: '|' ends a header, ';' ends a level.
     for side, price, orders in levels:
         h.update(f"{side}|{price}|".encode())
         h.update(",".join(f"{a}:{b}:{c}" for a, b, c in orders).encode())
@@ -202,6 +205,7 @@ class Engine:
         """Apply one command; return the events it produced (in sequence order)."""
         self._out = out = []
         self._dirty = dirty = {}
+        # Exact-type dispatch: `type(x) is` is cheaper than isinstance on the hot path.
         t = type(cmd)
         if t is NewOrder:
             self._new(cmd)  # type: ignore[arg-type]
@@ -211,15 +215,20 @@ class Engine:
             self._replace(cmd)  # type: ignore[arg-type]
         elif t is SnapshotRequest:
             self._seq += 1
+            # A snapshot changes no book state, but it still takes a sequence number so the event
+            # stream has no gaps.
             out.append(Snapshot(self._seq, *self.l2(cmd.depth)))  # type: ignore[union-attr]
         else:
             raise TypeError(f"unknown command {cmd!r}")
+        # One BookDelta per touched level with its final aggregate qty. A level that the command
+        # emptied was already removed from the book, so the lookup yields 0.
         if dirty:
             sides = self._sides
             for side, price in dirty:
                 lvl = sides[side].levels.get(price)
                 self._seq += 1
                 out.append(BookDelta(self._seq, side, price, lvl.qty if lvl is not None else 0))
+        # The journal stores inputs, not outputs: replaying them re-derives the same events.
         if self.journal is not None:
             self.journal.append(cmd)
         if self.events is not None:
@@ -251,6 +260,8 @@ class Engine:
     def queue_ahead(self, oid: int) -> int:
         """Shares resting ahead of ``oid`` at its price level (its queue position)."""
         o = self._index[oid]
+        # Sum the open qty ahead of the order by walking back to the head. Analytics only, so the
+        # linear walk is acceptable.
         ahead = 0
         p = o.prev
         while p is not None:
@@ -268,6 +279,7 @@ class Engine:
                     break
                 lv.append((lvl.price, lvl.qty))
             res.append(tuple(lv))
+        # Results are indexed by Side value (BUY = 0, SELL = 1), so res[BUY] is the bid side.
         return res[BUY], res[SELL]
 
     def depth_stats(self) -> dict[str, int]:
@@ -294,6 +306,8 @@ class Engine:
         """Expensive structural self-check used by tests."""
         bb, ba = self.best_bid(), self.best_ask()
         assert bb is None or ba is None or bb < ba, f"crossed book {bb} >= {ba}"
+        # Cross-check the key list, level map and order index against each other. Each assert
+        # catches a different kind of bookkeeping bug.
         n = 0
         for s in self._sides:
             assert sorted(s.keys) == s.keys
@@ -329,6 +343,8 @@ class Engine:
         """Validate, ack, match, then rest or cancel the remainder per ``otype``."""
         oid, otype, qty = c.order_id, c.otype, c.qty
         price = None if otype is OrdType.MARKET else c.price
+        # Checks run in a fixed order and each reject returns before any state changes. Ids are
+        # never reused: _seen is not cleared when an order fills or is cancelled.
         if oid in self._seen:
             return self._emit(Reject, oid, "duplicate_order_id")
         if type(qty) is not int or qty <= 0:
@@ -337,12 +353,16 @@ class Engine:
             return self._emit(Reject, oid, "bad_price")
         if otype is OrdType.POST_ONLY and self._crosses(c.side, price):  # type: ignore[arg-type]
             return self._emit(Reject, oid, "post_only_would_cross")
+        # Accepted: record the id, then ack before matching so the Ack precedes any fill.
         self._seen.add(oid)
         self._emit(Ack, oid, c.owner, c.side, otype, price, qty)
 
+        # FOK is all or nothing: prove the full quantity is fillable before touching the book.
         if otype is OrdType.FOK and self._available(c.side, price, c.owner, qty) < qty:  # type: ignore[arg-type]
             return self._emit(Cancelled, oid, qty, "fok_unfilled")
 
+        # Self-trade prevention cancels the incoming (newest) order's remainder, never the resting
+        # order it would have hit.
         remaining, stp = self._match(oid, c.owner, c.side, price, qty)
         if remaining == 0:
             return None
@@ -350,24 +370,31 @@ class Engine:
             return self._emit(Cancelled, oid, remaining, "self_trade")
         if otype is OrdType.LIMIT or otype is OrdType.POST_ONLY:
             return self._rest(_Order(oid, c.owner, c.side, price, remaining, otype))  # type: ignore[arg-type]
+        # Only LIMIT and POST_ONLY remainders rest. A FOK never gets here with a remainder, because
+        # _available mirrors _match's stop rule and already proved a full fill.
         reason = "no_liquidity" if otype is OrdType.MARKET else "ioc_unfilled"
         return self._emit(Cancelled, oid, remaining, reason)
 
     def _rest(self, o: _Order) -> None:
         """Book ``o`` at the back of its price level."""
+        # Joining the back of the level is what gives the order time priority.
         self._sides[o.side].level_for(o.price).append(o)
         self._index[o.oid] = o
+        # Booked is per order; the dirty level is reported once per command as a BookDelta.
         self._dirty[(o.side, o.price)] = None
         self._emit(Booked, o.oid, o.side, o.price, o.qty)
 
     def _available(self, side: Side, limit: int, owner: int, need: int) -> int:
         """Quantity a taker could fill right now, stopping where self-trade prevention would."""
         total = 0
+        # Walk the opposite side best-first, stopping at the first price the taker cannot cross.
         for lvl in self._sides[side.opposite].iter_levels():
             if (lvl.price > limit) if side is BUY else (lvl.price < limit):
                 break
             o = lvl.head
             while o is not None:
+                # Self-trade prevention: stop counting at our own order, exactly where _match stops,
+                # so FOK is never promised quantity that matching would not deliver.
                 if o.owner == owner:
                     return total
                 total += o.qty
@@ -380,23 +407,30 @@ class Engine:
         self, oid: int, owner: int, side: Side, limit: int | None, qty: int
     ) -> tuple[int, bool]:
         """Match an incoming taker. Returns (unfilled qty, stopped_by_self_trade)."""
+        # Hot path: bind the opposite side's containers to locals once, not per fill.
         opp = self._sides[SELL] if side is BUY else self._sides[BUY]
         keys, levels, sign = opp.keys, opp.levels, opp.sign
         out, dirty, index = self._out, self._dirty, self._index
         opp_side = opp.side
         remaining = qty
         is_buy = side is BUY
+        # Sweep best-to-worst. keys[-1] is the best level because of the price * sign encoding.
         while remaining and keys:
             best = keys[-1] * sign
+            # Stop at the first level that no longer crosses the limit. Market orders pass
+            # limit=None and never stop on price.
             if limit is not None and (best > limit if is_buy else best < limit):
                 break
             lvl = levels[best]
             o = lvl.head
             stp = False
             while o is not None and remaining:
+                # Reaching our own resting order ends the sweep and reports self-trade prevention.
                 if o.owner == owner:
                     stp = True
                     break
+                # A fill is the smaller of the maker's open qty and the taker's remainder. The maker
+                # keeps any excess and its queue position.
                 q = o.qty if o.qty < remaining else remaining
                 o.qty -= q
                 lvl.qty -= q
@@ -405,15 +439,21 @@ class Engine:
                 out.append(
                     Fill(self._seq, oid, o.oid, owner, o.owner, side, best, q, o.qty, remaining)
                 )
+                # Read the successor before a possible unlink, which clears o.next.
                 nxt = o.next
+                # A fully filled maker leaves the queue and the index. A partly filled one
+                # stays queued.
                 if o.qty == 0:
                     lvl.unlink(o)
                     del index[o.oid]
                 o = nxt
             dirty[(opp_side, best)] = None
+            # This sweep only empties the best level, so its key is keys[-1] and pop() removes it.
+            # Done inline because the hot loop already holds the keys list.
             if lvl.count == 0:
                 del levels[best]
                 keys.pop()
+            # A self-trade stops the sweep here. The caller decides what happens to the remainder.
             if stp:
                 return remaining, True
         return remaining, False
@@ -422,6 +462,8 @@ class Engine:
         """Unlink a resting order from its level and the index (emits no event)."""
         lvl = o.level
         assert lvl is not None
+        # Unlink in O(1). Only an emptied level touches the sorted key list; a level that still has
+        # orders just shrinks in place.
         lvl.unlink(o)
         if lvl.count == 0:
             self._sides[o.side].drop(o.price)
@@ -433,6 +475,7 @@ class Engine:
         o = self._index.get(c.order_id)
         if o is None:
             return self._emit(Reject, c.order_id, "unknown_order")
+        # Capture the open qty before removal so Cancelled reports what was actually removed.
         qty = o.qty
         self._remove(o)
         return self._emit(Cancelled, o.oid, qty, "user")
@@ -446,26 +489,36 @@ class Engine:
             return self._emit(Reject, c.order_id, "bad_qty")
         if c.price <= 0:
             return self._emit(Reject, c.order_id, "bad_price")
+        # Capture the pre-change state for the Replaced event before anything mutates o.
         old_price, old_qty = o.price, o.qty
+        # Priority rule: a same-price, not-larger request keeps the queue position. The level total
+        # is adjusted in place and the order keeps its node in the FIFO.
         if c.price == old_price and c.qty <= old_qty:
             # Size decrease (or no-op) at the same price keeps time priority.
             lvl = o.level
             assert lvl is not None
             lvl.qty -= old_qty - c.qty
             o.qty = c.qty
+            # An equal qty changes nothing on the book, so no level delta is needed.
             if c.qty != old_qty:
                 self._dirty[(o.side, o.price)] = None
             return self._emit(Replaced, o.oid, old_price, old_qty, c.price, c.qty, True)
+        # A repriced post-only order must not cross. A same-price size change cannot cross, because
+        # the order already rests on an uncrossed book.
         if o.otype is OrdType.POST_ONLY and c.price != old_price and self._crosses(o.side, c.price):
             return self._emit(Reject, o.oid, "post_only_would_cross")
         # Price change or size increase: loses priority. Pull it, re-enter as a taker.
+        # A repriced or enlarged order loses priority: pull it, report it, then re-enter it.
         self._remove(o)
         self._emit(Replaced, o.oid, old_price, old_qty, c.price, c.qty, False)
+        # The re-entered order is a taker: it may now cross and trade at its new price.
         remaining, stp = self._match(o.oid, o.owner, o.side, c.price, c.qty)
         if remaining == 0:
             return None
         if stp:
             return self._emit(Cancelled, o.oid, remaining, "self_trade")
+        # _remove dropped the index entry and _rest re-adds it, so the same node goes to the back of
+        # the queue at the new price.
         o.price = c.price
         o.qty = remaining
         return self._rest(o)

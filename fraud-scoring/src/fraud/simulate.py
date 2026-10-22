@@ -41,24 +41,31 @@ _SORT_KEYS = ["ts", "customer_id", "merchant_id"]
 def simulate(cfg: SimConfig | None = None) -> pd.DataFrame:
     """Return the full transaction stream sorted by time with a stable ``txn_id``."""
     cfg = cfg or SimConfig()
+    # One seeded generator drives the whole stream; the call order below fixes each draw.
     rng = np.random.default_rng(cfg.seed)
     world = build_world(cfg, rng)
     rows = TxnRows()
     devices = DeviceIds(ONE_OFF_DEVICE_BASE)
     generate_legit(cfg, world, rng, rows, devices)
+    # Snapshot the genuine rows: friendly fraud flips some, and skimming reads the rest.
     legit = pd.DataFrame(rows.cols)
+    # Fraud devices start in their own id range, so they cannot collide with one-off devices.
     devices.next = max(devices.next, FRAUD_DEVICE_BASE)
+    # Friendly fraud comes first, so flipped rows can be excluded from skimming victims.
     flipped = flip_friendly_fraud(cfg, rng, rows, legit)
     inject_fraud(cfg, world, rng, rows, legit[~flipped], devices)
 
     df = pd.DataFrame(rows.cols)
+    # A stable sort keeps ties in generation order, so the same seed gives the same rows.
     df = df.sort_values(_SORT_KEYS, kind="mergesort")
     df = df.reset_index(drop=True)
+    # txn_id is the row number after sorting: a stable index into feature and score arrays.
     df.insert(0, "txn_id", np.arange(len(df), dtype=np.int64))
     for col in _INT_COLUMNS:
         df[col] = df[col].astype(np.int64)
     df["card_present"] = df["card_present"].astype(bool)
     df["is_fraud"] = df["is_fraud"].astype(bool)
+    # Calendar-month index of each row; the time split is defined on it.
     df["period"] = (df["ts"] // cfg.period_seconds).astype(np.int64)
     return df
 

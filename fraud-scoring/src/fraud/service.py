@@ -33,6 +33,7 @@ class Scorer:
 
     def features(self, txn: Txn) -> list[float]:
         """Point-in-time features for ``txn``; folds it into state (same call as training)."""
+        # The lock makes read, fold and write atomic, so requests see one consistent event order.
         with self._lock:
             return self.engine.process(txn)
 
@@ -43,11 +44,15 @@ class Scorer:
         decisions - the ones a customer or analyst needs explained - so the common approve
         path pays for a single tree walk; "always" / "never" force the choice.
         """
+        # Features are read and folded under the lock; the score uses the returned copy.
         feats = self.features(txn)
         x = np.asarray(feats, dtype=np.float64)
+        # One row through the flat-array forest: the fast path for single requests.
         score = float(self.model.predict_online(x[None, :])[0])
+        # Bands are fixed, so the decision depends only on the score.
         decision = self.bands.decide(score)
         reasons: list[dict[str, Any]] = []
+        # Reason codes cost extra tree walks: the default computes them only when they are needed.
         if explain == "always" or (explain == "adverse" and decision != "approve"):
             reasons = self.model.reasons(x, score)
         return {

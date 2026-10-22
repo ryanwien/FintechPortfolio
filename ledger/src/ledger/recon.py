@@ -107,9 +107,12 @@ class Classified:
 
         Includes ``days_apart`` when both dates are known.
         """
+        # asdict() leaves the enum member in place. Store its string value so the dict serializes as
+        # JSON.
         d = asdict(self)
         d["kind"] = self.kind.value
         d["delta"] = self.delta
+        # days_apart needs both dates, so it is left out for items that exist on only one side.
         if self.ledger_date and self.bank_date:
             d["days_apart"] = (
                 date.fromisoformat(self.bank_date) - date.fromisoformat(self.ledger_date)
@@ -131,6 +134,8 @@ class ReconReport:
     def counts(self) -> dict[str, int]:
         """Number of items per classification, with zero for kinds that did not occur."""
         c = Counter(i.kind.value for i in self.items)
+        # Iterate the enum rather than the counter, so kinds that never occurred still appear with a
+        # zero.
         return {k.value: c.get(k.value, 0) for k in Recon}
 
     def summary(self, ledger_items: list[LedgerItem], lines: list[BankLine]) -> dict[str, Any]:
@@ -141,6 +146,8 @@ class ReconReport:
         """
         ledger_total = sum(i.amount for i in ledger_items)
         bank_total = sum(b.amount for b in lines)
+        # Each classified item carries its own bank-minus-ledger delta. Their sum is what the
+        # classifications account for.
         explained = sum(c.delta for c in self.items)
         matched = sum(1 for c in self.items if c.kind in MATCHES)
         return {
@@ -174,6 +181,8 @@ def reconcile(
     (3) leftovers on either side are breaks.
     """
     report = ReconReport()
+    # Index ledger items by reference. Sorting by date then entry_id makes the candidate order, and
+    # so the tie-breaks, deterministic.
     by_ref: dict[str, list[LedgerItem]] = defaultdict(list)
     for it in sorted(items, key=lambda i: (i.date, i.entry_id)):
         if it.ref is not None:
@@ -184,12 +193,18 @@ def reconcile(
 
     # Pass 1: reference match.
     for line in lines:
+        # No candidates under this reference. The line either has no usable reference or is
+        # bank-only; pass 2 looks at it.
         cands = by_ref.get(line.reference or "", [])
         if not cands:
             deferred.append(line)
             continue
+        # Unclaimed candidates in the same currency. An entry already matched cannot absorb a second
+        # bank line.
         free = [c for c in cands if c.entry_id not in used and c.currency == line.currency]
         if not free:
+            # Every candidate is taken, so the bank has reported this reference before. Point the
+            # duplicate at the entry that first claimed it.
             orig = matched_by_ref.get(str(line.reference))
             report.items.append(
                 Classified(
@@ -204,11 +219,16 @@ def reconcile(
                 )
             )
             continue
+        # Prefer the candidate whose amount agrees, then the nearest date. Amount outranks date when
+        # several entries share a reference.
         it = min(
             free, key=lambda c: (c.amount != line.amount, _days_apart(c.date, line.value_date))
         )
         used.add(it.entry_id)
+        # Remember the first claimant of each reference, so a later repeat can be reported against
+        # it.
         matched_by_ref[str(line.reference)] = it
+        # Classify by the first field that disagrees: the amount, then the value date.
         if it.amount != line.amount:
             kind = Recon.AMOUNT_MISMATCH
         elif _days_apart(it.date, line.value_date) > date_tolerance_days:
@@ -229,11 +249,15 @@ def reconcile(
         )
 
     # Pass 2: amount + date window for lines with no usable reference.
+    # Index unclaimed ledger items by (amount, currency), so each bank line scans only the items it
+    # could plausibly match.
     pool: dict[tuple[int, str], list[LedgerItem]] = defaultdict(list)
     for it in items:
         if it.entry_id not in used:
             pool[(it.amount, it.currency)].append(it)
     for line in deferred:
+        # Same amount and currency, unclaimed, and within the date tolerance. Anything outside that
+        # window stays a break.
         cands = [
             c
             for c in pool.get((line.amount, line.currency), [])
@@ -241,6 +265,8 @@ def reconcile(
             and _days_apart(c.date, line.value_date) <= date_tolerance_days
         ]
         if cands:
+            # Among the window's candidates the nearest date wins. ref and entry_id break ties, so
+            # the result does not depend on iteration order.
             it = min(
                 cands, key=lambda c: (_days_apart(c.date, line.value_date), c.ref or "", c.entry_id)
             )
@@ -272,6 +298,7 @@ def reconcile(
             )
 
     # Pass 3: ledger items the bank never reported.
+    # Report ledger items the bank never listed, in date order, so the output is stable.
     for it in sorted(items, key=lambda i: (i.date, i.ref or "")):
         if it.entry_id not in used:
             report.items.append(
@@ -284,8 +311,11 @@ def reconcile(
 
 def score(report: ReconReport, injected: list[InjectedBreak]) -> dict[str, Any]:
     """Precision/recall of break classification against injected ground truth."""
+    # Pairs of (kind, key). A break counts as correct only when both the kind and the item match.
     truth = {(b.kind, b.key) for b in injected}
     found = {(c.kind, c.key) for c in report.breaks}
+    # An empty denominator reports 1.0, meaning nothing was wrongly flagged or missed, rather than
+    # dividing by zero.
     per_kind: dict[str, dict[str, Any]] = {}
     for kind in BREAKS:
         t = {k for k in truth if k[0] is kind}

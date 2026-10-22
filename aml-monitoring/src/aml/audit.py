@@ -31,6 +31,7 @@ def entry_digest(
     prev_hash: str,
 ) -> str:
     """SHA-256 over the canonical JSON of an entry's content and its predecessor's hash."""
+    # Canonical JSON (sorted keys, no spaces) so identical content always hashes identically.
     body = json.dumps(
         {
             "seq": seq,
@@ -81,11 +82,15 @@ class AuditLog:
         self, ts: int, actor: str, action: str, case_id: str, **details: object
     ) -> AuditEntry:
         """Chain a new entry; ``details`` are stringified and stored sorted by key."""
+        # Enforce time order at append so verify_chain's timestamp check only trips on tampering.
         if self._entries and ts < self._entries[-1].ts:
             raise OutOfOrderEntryError("audit entries must be appended in time order")
+        # seq is the entry's position; prev is the last hash, or GENESIS for the very first entry.
         seq = len(self._entries)
         prev = self._entries[-1].entry_hash if self._entries else GENESIS
+        # Stringify and sort details so the hash does not depend on keyword-argument order.
         det = tuple(sorted((str(k), str(v)) for k, v in details.items()))
+        # The digest covers prev, so each entry commits to the whole history before it.
         entry = AuditEntry(
             seq,
             ts,
@@ -123,15 +128,20 @@ def verify_chain(entries: Sequence[AuditEntry]) -> VerifyResult:
     prev = GENESIS
     last_ts: int | None = None
     for i, e in enumerate(entries):
+        # A removed, inserted or reordered entry shows up as a seq that differs from its index.
         if e.seq != i:
             return VerifyResult(False, len(entries), i, "sequence gap or reorder")
+        # Each entry must point at its predecessor's hash; splicing breaks this link.
         if e.prev_hash != prev:
             return VerifyResult(False, len(entries), e.seq, "broken link to previous entry")
+        # Recompute the digest from the stored fields; any edited field makes it disagree.
         if e.entry_hash != entry_digest(
             e.seq, e.ts, e.actor, e.action, e.case_id, e.details, e.prev_hash
         ):
             return VerifyResult(False, len(entries), e.seq, "content does not match hash")
+        # Timestamps must not go backwards, mirroring the append-time rule.
         if last_ts is not None and e.ts < last_ts:
             return VerifyResult(False, len(entries), e.seq, "timestamp went backwards")
+        # Carry the running hash and last timestamp forward to check the next entry.
         prev, last_ts = e.entry_hash, e.ts
     return VerifyResult(True, len(entries))

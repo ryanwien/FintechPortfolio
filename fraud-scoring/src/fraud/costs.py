@@ -48,12 +48,15 @@ def action_costs(y: np.ndarray, amount: np.ndarray, cfg: CostConfig) -> np.ndarr
     """(n, 3) int64 matrix of costs in cents for [approve, review, decline]."""
     y = y.astype(np.int64)
     amount = amount.astype(np.int64)
+    # Cost in cents of each action; an approved fraud is charged back in full.
     approve = y * amount
+    # Review: analyst time, plus the fraud reviewers miss, plus friction if the customer is good.
     review = (
         cfg.review_cost_cents
         + y * (amount * (BPS - cfg.review_catch_bps) // BPS)
         + (1 - y) * cfg.review_friction_cents
     )
+    # Declining only costs something when the customer was good: lost margin and friction.
     decline = (1 - y) * (amount * cfg.decline_margin_bps // BPS + cfg.decline_friction_cents)
     return np.column_stack([approve, review, decline]).astype(np.int64)
 
@@ -75,6 +78,7 @@ class Bands:
 
     def decide_many(self, scores: np.ndarray) -> np.ndarray:
         """Vectorised :meth:`decide` as action indices (APPROVE / REVIEW / DECLINE)."""
+        # Start everyone at approve and raise by threshold; decline is applied last so it wins.
         out = np.full(len(scores), APPROVE, dtype=np.int64)
         out[scores >= self.review_at] = REVIEW
         out[scores >= self.decline_at] = DECLINE
@@ -91,6 +95,7 @@ def candidate_thresholds(scores: np.ndarray, n_grid: int = N_GRID) -> np.ndarray
         cands = uniq
     else:
         # Dense in the upper tail where decisions happen.
+        # Log-spaced tail levels pack thresholds near the top scores, where decisions are made.
         q = 1.0 - np.logspace(GRID_TAIL_LOG10, np.log10(0.5), n_grid)
         cands = np.unique(np.quantile(scores, q, method="higher"))
     return np.append(cands, np.inf)  # inf = "nobody in this band"
@@ -101,21 +106,27 @@ def optimize_bands(
 ) -> tuple[Bands, int]:
     """Exhaustive search over (review_at <= decline_at) pairs; returns bands and loss cents."""
     costs = action_costs(y, amount, cfg)
+    # Sort once: any band's cost is then a difference of two prefix sums, not a rescan.
     order = np.argsort(scores, kind="stable")
     s = scores[order]
     c = costs[order]
+    # prefix[i] holds the total cost of the i lowest-scoring txns, for each action.
     prefix = np.vstack([np.zeros((1, 3), dtype=np.int64), np.cumsum(c, axis=0)])
     cands = candidate_thresholds(scores, n_grid)
     idx = np.searchsorted(s, cands, side="left")  # number of txns with score < threshold
     n = len(s)
     ir = idx[:, None]  # review threshold on rows
     idd = idx[None, :]  # decline threshold on columns
+    # Approve = below the review cut; review = [review cut, decline cut); decline = above.
     approve = prefix[ir, APPROVE]
     review = prefix[idd, REVIEW] - prefix[ir, REVIEW]
     decline = prefix[n, DECLINE] - prefix[idd, DECLINE]
     loss = approve + review + decline
+    # Only pairs with review <= decline are meaningful, and the band must fit analyst capacity.
     valid = (cands[:, None] <= cands[None, :]) & ((idd - ir) <= cfg.max_review_rate * n)
+    # Invalid pairs get the largest int so argmin can never choose them.
     loss = np.where(valid, loss, np.iinfo(np.int64).max)
+    # argmin returns the first minimum in row-major order, so ties resolve the same way each run.
     r, d = np.unravel_index(int(np.argmin(loss)), loss.shape)
     return Bands(float(cands[r]), float(cands[d])), int(loss[r, d])
 
@@ -128,6 +139,7 @@ def evaluate_bands(
     act = bands.decide_many(scores)
     y = y.astype(bool)
     amount = amount.astype(np.int64)
+    # Each transaction pays the cost of the action its score selected.
     loss = int(costs[np.arange(len(act)), act].sum())
     fraud_cents = int(amount[y].sum())
     approved, reviewed, declined = act == APPROVE, act == REVIEW, act == DECLINE
@@ -146,6 +158,7 @@ def evaluate_bands(
         "false_declines": int((~y & declined).sum()),
         "good_reviews": int((~y & reviewed).sum()),
     }
+    # Reviewed fraud is only partly stopped; the share reviewers miss still counts as loss.
     leaked = amount * (BPS - cfg.review_catch_bps) // BPS
     out["loss_breakdown_cents"] = {
         "fraud_missed": int(amount[y & approved].sum() + leaked[y & reviewed].sum()),
@@ -172,10 +185,12 @@ def decline_curve(
 ) -> tuple[list[float], list[int]]:
     """Expected loss (cents) vs a single decline threshold, no review band."""
     costs = action_costs(y, amount, cfg)
+    # Chart thresholds run from the top 0.01% of scores to a 30% decline share.
     q = 1.0 - np.logspace(CURVE_TAIL_LOG10, np.log10(CURVE_MAX_DECLINE_SHARE), n_points)
     ths = np.unique(np.quantile(scores, q, method="higher"))
     xs, ys = [], []
     for t in ths:
+        # Approve below the threshold, decline at or above it; loss = missed fraud + false declines.
         dec = scores >= t
         xs.append(float(t))
         ys.append(int(costs[~dec, APPROVE].sum() + costs[dec, DECLINE].sum()))

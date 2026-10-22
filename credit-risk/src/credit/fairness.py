@@ -48,6 +48,7 @@ def equal_opportunity_gap(
     approved = np.asarray(approved, dtype=bool)
     good = np.asarray(y_bad, dtype=int) == 0
     group = np.asarray(group)
+    # True-positive rate of approval: the share of good loans approved, per group.
     tpr_ref = approved[good & (group == reference)].mean()
     tpr_prot = approved[good & (group == protected)].mean()
     return float(tpr_ref - tpr_prot)
@@ -62,8 +63,11 @@ def fairness_summary(
 ) -> FairnessSummary:
     """Approval rates, AIR with the four-fifths screen, and the equal-opportunity gap."""
     rates = approval_rates(approved, group)
+    # Four-fifths rule is a screening heuristic (EEOC guideline): a fail flags the
+    # decisions for review and is not a finding of discrimination.
     air = rates[protected] / rates[reference]
     good = np.asarray(y_bad, dtype=int) == 0
+    # Approval among creditworthy applicants only, the population the EO gap compares.
     good_rates = approval_rates(np.asarray(approved)[good], np.asarray(group)[good])
     return {
         "approval_rate": rates,

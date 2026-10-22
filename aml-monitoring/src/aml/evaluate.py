@@ -51,6 +51,8 @@ def evaluate(
     world: World, det: DetectionResult, cases: list[Case], cfg: MonitoringConfig
 ) -> dict[str, Any]:
     """World, alert, detection, case, look-alike and analyst metrics for ``metrics.json``."""
+    # Ground truth is every customer in any injected typology instance; everyone else counts as
+    # benign.
     truth = world.truth()
     n_cust = len(world.customers)
     benign = [c for c in world.customers if c not in truth]
@@ -59,41 +61,53 @@ def evaluate(
     tp_alerts = sum(a.customer_id in truth for a in alerts)
 
     per_rule: dict[str, dict[str, Any]] = {}
+    # Per-rule precision: each rule's alerts are scored against the same customer-level truth.
     for rule in sorted({a.rule_id for a in alerts}):
         ra = [a for a in alerts if a.rule_id == rule]
         tp = sum(a.customer_id in truth for a in ra)
         per_rule[rule] = {"alerts": len(ra), "true_positive": tp, "precision": _rate(tp, len(ra))}
 
+    # Above-the-line subjects are the customers whose cases reached the analyst queue above the
+    # line.
     atl = [c for c in cases if c.above_line]
     atl_subjects = {s for c in atl for s in c.subjects}
     per_typology: dict[str, dict[str, Any]] = {}
     for typ in sorted({i.typology for i in world.instances}):
         insts = [i for i in world.instances if i.typology == typ]
         members = [m for i in insts for m in i.members]
+        # Per-variant tallies are [instances, alerted, at_line].
         variants: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0])
         for i in insts:
+            # Mule networks have no variant label, so they all share one 'ring' bucket.
             v = variants[i.variant if typ != "mule_network" else "ring"]
             v[0] += 1
             v[1] += any(m in alerted for m in i.members)
             v[2] += any(m in atl_subjects for m in i.members)
         per_typology[typ] = {
             "instances": len(insts),
+            # An instance counts as detected if any single member is alerted (or sits in an above-
+            # the-line case).
             "detection_rate_alerts": _rate(
                 sum(any(m in alerted for m in i.members) for i in insts), len(insts)
             ),
             "detection_rate_at_line": _rate(
                 sum(any(m in atl_subjects for m in i.members) for i in insts), len(insts)
             ),
+            # Member coverage is the finer measure: the share of individual members in above-line
+            # cases.
             "member_coverage_at_line": _rate(sum(m in atl_subjects for m in members), len(members)),
             "by_variant": {
                 k: {"instances": v[0], "alerted": v[1], "at_line": v[2]}
                 for k, v in sorted(variants.items())
             },
         }
+    # Headline instance-level detection uses the same any-member rule across all instances.
     n_inst = len(world.instances)
     det_alerts = sum(any(m in alerted for m in i.members) for i in world.instances)
     det_line = sum(any(m in atl_subjects for m in i.members) for i in world.instances)
 
+    # Benign look-alike segments are reported separately, which shows where false positives come
+    # from.
     lookalikes = {
         seg: {
             "customers": len(ms),
@@ -107,6 +121,7 @@ def evaluate(
         """True when any subject of the case is a labelled suspicious customer."""
         return any(s in truth for s in c.subjects)
 
+    # Only cases that have an outcome count here; cases still open or suppressed are excluded.
     reviewed = [c for c in atl if c.disposition is not None]
     sars = [c for c in reviewed if c.disposition == "SAR_FILED"]
     analyst = {
@@ -115,9 +130,11 @@ def evaluate(
         "sar_conversion_rate": _rate(len(sars), len(reviewed)),
         "sars_on_true_cases": sum(case_true(c) for c in sars),
         "sars_on_benign_cases": sum(not case_true(c) for c in sars),
+        # Misses: suspicious cases that the analysts did not file on.
         "true_cases_closed_without_sar": sum(
             case_true(c) and c.disposition != "SAR_FILED" for c in reviewed
         ),
+        # Decision accuracy: a correct call is a SAR on a suspicious case or no SAR on a benign one.
         "decision_accuracy": _rate(
             sum(case_true(c) == (c.disposition == "SAR_FILED") for c in reviewed), len(reviewed)
         ),
@@ -135,8 +152,12 @@ def evaluate(
             "total": len(alerts),
             "true_positive": tp_alerts,
             "precision": _rate(tp_alerts, len(alerts)),
+            # Rates are normalised per 1,000 customers so runs of different population sizes
+            # compare.
             "per_1k_customers": round(PER_1K * len(alerts) / n_cust, 1),
             "customers_alerted": len(alerted),
+            # Recall counts suspicious customers that were alerted; the FP rate counts benign
+            # customers that were.
             "customer_recall": _rate(sum(c in alerted for c in truth), len(truth)),
             "false_positive_rate": _rate(sum(c in alerted for c in benign), len(benign)),
             "per_rule": per_rule,
@@ -151,6 +172,7 @@ def evaluate(
             "above_line": len(atl),
             "below_line": len(cases) - len(atl),
             "network_cases": sum(c.network_id is not None for c in cases),
+            # Above-line precision: the share of queued cases that include a true suspect.
             "precision_above_line": _rate(sum(case_true(c) for c in atl), len(atl)),
             "per_1k_customers_above_line": round(PER_1K * len(atl) / n_cust, 1),
             "line": cfg.scoring.case_line,
@@ -167,12 +189,16 @@ def line_sweep(
     world: World, cases: list[Case], lines: Iterable[float] = LINE_SWEEP_POINTS
 ) -> list[dict[str, Any]]:
     """Move the case-score line: workload vs typology detection (the trade-off curve)."""
+    # Each line re-cuts the same case list, so the sweep traces a workload versus detection curve.
     truth = world.truth()
     n_cust = len(world.customers)
     out = []
     for line in lines:
+        # A case is above a given line if its score meets or exceeds it, matching the production
+        # rule.
         atl = [c for c in cases if c.score >= line]
         subj = {s for c in atl for s in c.subjects}
+        # A typology instance counts as detected if any member sits in a case above this line.
         detected = sum(any(m in subj for m in i.members) for i in world.instances)
         tp = sum(any(s in truth for s in c.subjects) for c in atl)
         out.append(
@@ -209,7 +235,10 @@ def rule_sweeps(
     world: World, det: DetectionResult, cfg: MonitoringConfig
 ) -> dict[str, list[dict[str, Any]]]:
     """Above/below-the-line testing: re-run one rule at a time with shifted thresholds."""
+    # Activities are computed once; each sweep point re-runs only the rule being varied.
     acts = det.acts
+    # The merge gap comes from the production config, so sweep alerts merge the same way real ones
+    # do.
     gap = cfg.scoring.alert_merge_gap_days
     out: dict[str, list[dict[str, Any]]] = {}
 
@@ -223,11 +252,15 @@ def rule_sweeps(
         """Run ``run`` at each value and store the points under ``name``; ``fmt`` labels them."""
         pts = []
         for v in values:
+            # Each sweep point is deduped and scored on its own, so the points are directly
+            # comparable.
             p = _rule_point(world, run(v), target, gap)
             p["value"] = fmt(v)
             pts.append(p)
         out[name] = pts
 
+    # Each sweep replaces one threshold on a copy of the config; everything else stays at production
+    # values.
     s = cfg.structuring
     sweep(
         "STR-01.band_low_dollars",
@@ -274,9 +307,12 @@ def rule_sweeps(
 
     def fans(v: int) -> list[Alert]:
         """Fan-in (GRA-FIN) alerts with ``fan_in_min`` set to ``v``, for one sweep point."""
+        # Copy the graph config with only fan_in_min changed; the degree baselines are rebuilt from
+        # that copy.
         c2 = replace(gc, fan_in_min=v)
         return [
             a
+            # Keep only GRA-FIN alerts, so this sweep measures just the fan-in rule.
             for a in detect_fans(world, acts, c2, "", degree_baselines(world, c2))
             if a.rule_id == "GRA-FIN"
         ]

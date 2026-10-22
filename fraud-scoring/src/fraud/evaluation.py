@@ -49,9 +49,11 @@ class TimeSplit:
     def from_config(cls, cfg: SimConfig) -> TimeSplit:
         """Warm-up, then ``TRAIN_PERIODS`` train months, one validation month,
         ``TEST_PERIODS`` test months, ending right before the shifted month."""
+        # Months run consecutively after warm-up: train, then one validation month, then test.
         train = tuple(range(cfg.warmup_periods, cfg.warmup_periods + TRAIN_PERIODS))
         valid = (train[-1] + 1,)
         test = tuple(range(valid[-1] + 1, valid[-1] + 1 + TEST_PERIODS))
+        # Fail loudly if the layout leaves a gap or an overlap before the shifted month.
         if test[-1] + 1 != cfg.shift_period:
             raise ValueError(
                 f"test months {test} must end right before shift_period={cfg.shift_period}"
@@ -74,6 +76,7 @@ class SplitMasks:
 
         Train, validation and test are month sets; the shifted split is the single shifted month.
         """
+        # Month sets use membership; the shifted split is one month, so equality is enough.
         return cls(
             train=np.isin(period, split.train),
             valid=np.isin(period, split.valid),
@@ -101,8 +104,10 @@ def model_reports(
 
 def _recall_by_type(s: np.ndarray, ftype: np.ndarray, n_alert: int) -> dict[str, float]:
     """Share of each fraud type's transactions inside the top ``n_alert`` scores."""
+    # Mark the n_alert highest scores; the stable sort makes ties deterministic.
     alerted = np.zeros(len(s), dtype=bool)
     alerted[np.argsort(-s, kind="stable")[:n_alert]] = True
+    # Recall per type: the share of that type's transactions that land in the alert set.
     return {t: float(alerted[ftype == t].mean()) for t in FRAUD_TYPES if (ftype == t).any()}
 
 
@@ -128,6 +133,7 @@ def recall_by_fraud_type(
 
 def recall_ceiling(reports: dict[str, dict[str, Any]]) -> dict[str, float]:
     """Best possible recall at the primary alert rate: alerts / fraud count, capped at 1."""
+    # A perfect ranker fills the alert quota with fraud, so the ceiling is alerts / fraud.
     hgb = reports["hgb"]
     return {
         split: min(1.0, hgb[split][KEY_RECALL_PRIMARY]["n_alerts"] / hgb[split]["n_fraud"])
@@ -144,6 +150,7 @@ def decide_per_model(
 ) -> dict[str, dict[str, Any]]:
     """Optimise bands on validation, then evaluate them frozen on test and shifted."""
     decisions: dict[str, dict[str, Any]] = {}
+    # Bands are tuned on the validation month only; test and shifted just apply them.
     v, t, sh = masks.valid, masks.test, masks.shifted
     for name, s in scores.items():
         bands, v_loss = optimize_bands(s[v], y[v], amount[v], cost_cfg)
@@ -164,12 +171,14 @@ def savings(
     n_test_months: int,
 ) -> dict[str, Any]:
     """HGB's test-period expected-loss reduction vs rules, logistic and approve-all."""
+    # Approve-all has no model or bands: its loss is the raw fraud dollars in test months.
     approve_all_test = approve_all_loss(y[masks.test], amount[masks.test])
     loss = {k: decisions[k]["test"]["expected_loss_cents"] for k in MODELS}
     return {
         "approve_all_loss_cents": approve_all_test,
         "hgb_vs_rules_cents": loss["rules"] - loss["hgb"],
         "hgb_vs_rules_pct": (loss["rules"] - loss["hgb"]) / loss["rules"],
+        # Monthly figure: the test-period saving averaged over the number of test months.
         "hgb_vs_rules_cents_per_month": (loss["rules"] - loss["hgb"]) // n_test_months,
         "hgb_vs_logreg_cents": loss["logreg"] - loss["hgb"],
         "hgb_vs_approve_all_cents": approve_all_test - loss["hgb"],
@@ -185,6 +194,7 @@ def validation_decline_curve(
     cost_cfg: CostConfig,
 ) -> dict[str, Any]:
     """Chart series: expected loss in USD vs a single decline threshold, validation month."""
+    # The same validation month the bands were tuned on, so the chart shows that choice.
     v = masks.valid
     curve_x, curve_y = decline_curve(hgb_scores[v], y[v], amount[v], cost_cfg)
     return {
@@ -198,6 +208,7 @@ def drift_report(
     X: np.ndarray, hgb_scores: np.ndarray, y: np.ndarray, masks: SplitMasks
 ) -> dict[str, Any]:
     """Feature PSI vs the training months (all traffic and fraud-only) plus score PSI."""
+    # Fraud-only PSI uses matured labels of the fraud rows; usable only after chargebacks.
     fraud = y == 1
     tr, te, sh = masks.train, masks.test, masks.shifted
     drift: dict[str, Any] = {
@@ -211,6 +222,7 @@ def drift_report(
         "score_psi_train_vs_shifted": psi(hgb_scores[tr], hgb_scores[sh]),
     }
     drift["score_status_shifted"] = status(drift["score_psi_train_vs_shifted"])
+    # Pre-compute the ALERT and warn feature lists so the report and site can cite them.
     for key in DRIFT_COMPARISONS:
         drift[f"alerts_{key}"] = [r["feature"] for r in drift[key] if r["status"] == "ALERT"]
         drift[f"warns_{key}"] = [r["feature"] for r in drift[key] if r["status"] == "warn"]

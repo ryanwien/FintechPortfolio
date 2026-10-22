@@ -70,6 +70,7 @@ class LabelIn(BaseModel):
 
 def create_app(scorer: Scorer) -> FastAPI:
     """Build the app around an existing (possibly pre-warmed) scorer."""
+    # The API version is the model version, so the OpenAPI doc says which model it serves.
     app = FastAPI(title="fraud-scoring", version=scorer.model.version)
 
     @app.get("/health")
@@ -92,6 +93,7 @@ def create_app(scorer: Scorer) -> FastAPI:
         have arrived by ``ts``. Each call folds the request into customer state, so resending a
         transaction counts it twice.
         """
+        # Latency covers scoring and response building; FastAPI already parsed the body.
         t0 = time.perf_counter()
         res = scorer.score(Txn(**txn.model_dump()), explain=explain)
         return ScoreOut(
@@ -101,6 +103,7 @@ def create_app(scorer: Scorer) -> FastAPI:
             reasons=[Reason(**r) for r in res["reasons"]],
             model_version=res["model_version"],
             latency_ms=(time.perf_counter() - t0) * 1000.0,
+            # The feature dump is opt-in; it is what the train/serve skew check compares against.
             features=dict(zip(FEATURES, res["features"], strict=True)) if debug else None,
         )
 
@@ -112,6 +115,7 @@ def create_app(scorer: Scorer) -> FastAPI:
         merchant's 30-day chargeback rate for transactions scored after it arrives; no earlier score
         changes. Returns ``status: ingested``.
         """
+        # A label only changes scores made after label_ts; decisions already returned stay put.
         scorer.ingest_label(ev.merchant_id, ev.label_ts)
         return {"status": "ingested"}
 

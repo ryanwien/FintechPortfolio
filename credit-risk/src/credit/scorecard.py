@@ -84,6 +84,7 @@ class Scorecard:
         min_bin_frac: float = MIN_BIN_FRAC,
         min_iv: float = MIN_IV,
     ) -> None:
+        # Fail fast: the protected attribute is rejected before any binning or fitting.
         assert_no_protected([*numeric, *categorical])
         self.min_iv = min_iv
         self.numeric = list(numeric)
@@ -115,13 +116,19 @@ class Scorecard:
         positive first) and the model refit. A positive coefficient on a WoE
         feature reverses the univariate risk ordering, typically through collinearity, and
         would produce counter-intuitive points and adverse action reasons."""
+        # Stage 1: bin every candidate. IV, WoE and the final points all come from these
+        # bins, so they are fitted once here.
         self.binner.fit(df, y, self.numeric, self.categorical)
         ivs = {f: b.iv for f, b in self.binner.binnings.items()}
+        # Weak characteristics are removed on IV alone, before any model is fitted.
         self.dropped_for_iv = [f for f in self.features if ivs[f] < self.min_iv]
         self.numeric = [f for f in self.numeric if f not in self.dropped_for_iv]
         self.categorical = [f for f in self.categorical if f not in self.dropped_for_iv]
+        # Stage 2: the regression is fitted on WoE-encoded characteristics.
         woe = self.binner.transform(df)
         yv = np.asarray(y, dtype=int)
+        # Stage 3: refit until every coefficient is negative (higher WoE, lower PD). Each
+        # pass removes one feature, so the loop ends after at most len(features) refits.
         self.dropped_for_sign = []
         while True:
             self.model.fit(woe[self.features].to_numpy(), yv)
@@ -129,10 +136,12 @@ class Scorecard:
             wrong = {f: c for f, c in coefs.items() if c >= 0}
             if not wrong:
                 break
+            # Drop the most positive coefficient first: it is the largest violation of the sign.
             worst = max(wrong, key=wrong.get)
             self.dropped_for_sign.append(worst)
             self.numeric = [f for f in self.numeric if f != worst]
             self.categorical = [f for f in self.categorical if f != worst]
+        # coefs was built on the final pass, which is the one that broke out, so it matches.
         self.coef_ = coefs
         self.intercept_ = float(self.model.intercept_[0])
         self._build_points()
@@ -141,6 +150,7 @@ class Scorecard:
     def _intercept_share(self) -> float:
         """Points each characteristic receives from the intercept (neutral WoE 0)."""
         s = self.scaling
+        # Equal split, so the k shares add back up to the intercept's full score contribution.
         return (s.offset - s.factor * self.intercept_) / len(self.features)
 
     def _build_points(self) -> None:
@@ -150,6 +160,9 @@ class Scorecard:
         of the intercept, so summing one bin per characteristic yields the scaled score.
         """
         s = self.scaling
+        # Summing one bin per characteristic gives offset - factor * (b0 + sum_i b_i * WoE_i).
+        # The bracket is logit(PD_bad) = -ln(good:bad odds), so the sum is
+        # offset + factor * ln(odds), the scaled score.
         shift = self._intercept_share()
         self.points = {}
         rows = []
@@ -160,6 +173,7 @@ class Scorecard:
             for label, w, p in zip(b.labels, b.woe, pts, strict=True):
                 rows.append({"feature": f, "bin": label, "woe": w, "points": p})
         self.points_table = pd.DataFrame(rows)
+        # Best attainable points per characteristic: the reference for points lost.
         self.max_points = {f: float(p.max()) for f, p in self.points.items()}
 
     def points_matrix(self, df: pd.DataFrame) -> pd.DataFrame:

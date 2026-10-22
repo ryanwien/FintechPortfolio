@@ -63,7 +63,9 @@ def replay_in_process(
     shift_start: int,
 ) -> InProcessReplay:
     """Replay every event through a fresh scorer; time requests from ``test_start`` on."""
+    # Fresh state: the replay rebuilds customer history from the stream, as a live service would.
     scorer = Scorer(model, FeatureEngine(), bands)
+    # Timed windows: first with the production explain setting, then with reasons forced.
     t_adverse_end = test_start + N_LATENCY
     t_always_end = t_adverse_end + N_LATENCY_ALWAYS
     online_feats = np.empty((len(df), len(FEATURES)), dtype=np.float64)
@@ -71,13 +73,16 @@ def replay_in_process(
     lat_adverse: list[int] = []
     lat_always: list[int] = []
     engine_at_shift: FeatureEngine | None = None
+    # Stream order means each label is applied exactly when the service would have received it.
     for kind, ev in iter_events(df, labels):
         if kind == "label":
             scorer.ingest_label(*ev)
             continue
         tid = ev.txn_id
         if tid == shift_start:
+            # Deep copy freezes the state at the shift; the scorer keeps moving through the stream.
             engine_at_shift = copy.deepcopy(scorer.engine)
+        # Timed requests take the full score path; other rows only need features for the check.
         if test_start <= tid < t_always_end:
             production = tid < t_adverse_end
             s0 = time.perf_counter_ns()
@@ -112,9 +117,11 @@ def replay_http(
     ``scorer`` must hold state as of ``shift_start``; ``X`` is the batch feature matrix the
     echoed features are compared against.
     """
+    # In-process ASGI client: real routes and JSON validation, without opening a socket.
     client = TestClient(create_app(scorer))
     head = df[shifted].iloc[:N_HTTP]
     snap_ts = int(df.loc[shift_start, "ts"])
+    # Only labels arriving inside this window go to /label; older ones are already in state.
     head_labels = labels[
         (labels["label_ts"] > snap_ts) & (labels["label_ts"] <= int(head["ts"].iloc[-1]))
     ]
@@ -123,6 +130,7 @@ def replay_http(
         if kind == "label":
             client.post("/label", json={"merchant_id": ev[0], "label_ts": ev[1]})
             continue
+        # NamedTuple to dict: the JSON body the API expects.
         payload = ev._asdict()
         s0 = time.perf_counter_ns()
         r = client.post("/score", params={"debug": "true"}, json=payload)
@@ -130,8 +138,10 @@ def replay_http(
         body = r.json()
         out.decisions[body["decision"]] = out.decisions.get(body["decision"], 0) + 1
         got = np.array([body["features"][f] for f in FEATURES])
+        # Compare the echoed features with the batch row for this transaction: the HTTP skew check.
         diff = float(np.max(np.abs(got - X[payload["txn_id"]])))
         out.max_abs_feature_diff = max(out.max_abs_feature_diff, diff)
+        # Keep the highest-scoring response as a readable example for the report.
         if body["score"] > out.example_response.get("score", -1.0):
             out.example_response = {k: v for k, v in body.items() if k != "features"}
     return out

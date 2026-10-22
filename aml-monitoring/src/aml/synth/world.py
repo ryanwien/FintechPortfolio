@@ -45,6 +45,8 @@ def generate_world(seed: int = DEFAULT_SEED, n_customers: int = DEFAULT_CUSTOMER
     """Build the full synthetic world; identical inputs give an identical world."""
     b = WorldBuilder(seed)
     rng = b.rng
+    # Split the customer count: the business share first, then intercompany groups; individuals take
+    # the remainder.
     n_biz = int(n_customers * BUSINESS_SHARE)
     n_groups = max(1, n_customers // CUSTOMERS_PER_INTERCOMPANY_GROUP)
     n_ind = n_customers - n_biz - INTERCOMPANY_GROUP_SIZE * n_groups
@@ -52,6 +54,8 @@ def generate_world(seed: int = DEFAULT_SEED, n_customers: int = DEFAULT_CUSTOMER
     for _ in range(n_ind):
         cid = gen_individual(b)
         individuals.append(cid)
+        # One uniform roll per individual; the cumulative thresholds make the three add-ons mutually
+        # exclusive.
         roll = rng.random()
         if roll < REMITTANCE_ROLL:
             add_remittance(b, cid)
@@ -59,14 +63,21 @@ def generate_world(seed: int = DEFAULT_SEED, n_customers: int = DEFAULT_CUSTOMER
             add_life_event(b, cid)
         elif roll < FAMILY_WIRE_ROLL:
             add_family_wire(b, cid)
+    # Peer-to-peer ties are built only after every individual exists, since friends are drawn from
+    # that population.
     gen_p2p(b, individuals)
+    # The mix weights set how common each business segment is.
     segments, weights = list(BUSINESS_MIX), list(BUSINESS_MIX.values())
     for _ in range(n_biz):
         gen_business(b, rng.choices(segments, weights)[0])
+    # Intercompany groups are fixed-size clusters, one per block of 400 customers.
     for _ in range(n_groups):
         gen_intercompany_group(b)
 
+    # Scale the per-instance counts to the population, so a bigger world keeps the same typology
+    # density.
     scale = n_customers / REFERENCE_POPULATION
+    # Typology injectors run last; each creates its own subjects through the normal generators.
     for inject, count in TYPOLOGY_COUNTS:
         for _ in range(round(count * scale)):
             inject(b)

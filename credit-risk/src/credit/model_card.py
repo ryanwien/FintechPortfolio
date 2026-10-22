@@ -43,6 +43,7 @@ def render_model_card(m: Metrics) -> str:
     mono = ", ".join(f"{k} {v:+d}" for k, v in ch["monotonic_constraints"].items() if v)
     dropped = ", ".join(c["dropped_for_sign"]) or "none"
     loan_lo, loan_hi = LOAN_BOUNDS
+    # The live AIR comes from the adopted variant, so the monitoring line matches section 5.
     air = adopted_fairness(m)["adverse_impact_ratio"]
     return f"""# Model card: consumer instalment loan PD scorecard
 

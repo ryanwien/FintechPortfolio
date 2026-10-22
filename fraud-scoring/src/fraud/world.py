@@ -76,6 +76,7 @@ class World:
 
     def device_at(self, customer: int, ts: int) -> int:
         """The customer's own device at time ``ts`` (switches after a phone upgrade)."""
+        # Phone upgrades are one-way: from the upgrade time on, the second device id is used.
         upgraded = ts >= self.cust_upgrade_ts[customer]
         return int(self.cust_devices[customer, 1] if upgraded else self.cust_devices[customer, 0])
 
@@ -104,6 +105,7 @@ class TxnRows:
         label_ts: int,
     ) -> None:
         """Append one transaction, one value per column; all arguments are keyword-only."""
+        # Row tuple in COLUMNS order; the zip below pairs each value with its named column.
         values = (
             ts,
             customer_id,
@@ -138,12 +140,14 @@ class DeviceIds:
 def jitter(rng: np.random.Generator, lat: float, lon: float, km: float) -> np.ndarray:
     """A point roughly ``km`` (one sigma) from (lat, lon)."""
     d = rng.normal(0.0, km / KM_PER_DEGREE, size=2)
+    # Longitude degrees shrink with latitude, so widen the east-west offset; capped at poles.
     d[1] /= max(np.cos(np.radians(lat)), MIN_COS_LAT)
     return np.array([lat + d[0], lon + d[1]])
 
 
 def amount_cents(rng: np.random.Generator, mean_dollars: float, sigma: float = 0.6) -> int:
     """Lognormal ticket with the given mean, in integer cents (at least 50c)."""
+    # A lognormal with mu = -sigma^2 / 2 has mean 1, so the ticket averages mean_dollars.
     v = mean_dollars * rng.lognormal(-0.5 * sigma**2, sigma)
     return int(max(MIN_AMOUNT_CENTS, round(v * 100)))
 
@@ -153,11 +157,13 @@ def away_location(rng: np.random.Generator, home: int) -> int:
     if rng.random() < 0.25:
         return int(rng.choice(ABROAD))
     k = int(rng.choice(DOMESTIC))
+    # A collision with home is nudged three metros over, so the result is never home.
     return k if k != home else (k + 3) % len(DOMESTIC)
 
 
 def build_world(cfg: SimConfig, rng: np.random.Generator) -> World:
     """Draw merchants (with guaranteed coverage of every MCC/location) and customers."""
+    # Customers and merchants follow population; abroad merchants get a small extra share.
     pop_w = np.array([loc[3] for loc in LOCATIONS])
     pop_w = pop_w / pop_w.sum()
     merch_w = pop_w + ABROAD_MERCHANT_WEIGHT
@@ -165,6 +171,7 @@ def build_world(cfg: SimConfig, rng: np.random.Generator) -> World:
     n_mcc = len(MCC_CODES)
     is_online = np.array([MCCS[int(m)][2] for m in MCC_CODES])
 
+    # Flatten MCC popularity so merchant categories are less skewed than customer spend.
     mcc_w = (
         np.array([MCC_BASE_WEIGHT[int(m)] for m in MCC_CODES], dtype=float) ** MCC_SPREAD_EXPONENT
     )
@@ -180,10 +187,12 @@ def build_world(cfg: SimConfig, rng: np.random.Generator) -> World:
             loc_idx += list(range(N_LOC))
     merch_mcc_idx = np.array(mcc_idx)
     merch_loc_idx = np.array(loc_idx)
+    # Online merchants have no place; they keep (0, 0) and are never read for card-present.
     latlon = np.zeros((len(mcc_idx), 2))
     for j, k in enumerate(loc_idx):
         if k >= 0:
             latlon[j] = jitter(rng, LOCATIONS[k][1], LOCATIONS[k][2], MERCHANT_JITTER_KM)
+    # Index merchants by (category, location) for physical buys and by category for online.
     by_loc: dict[tuple[int, int], list[int]] = {}
     online: dict[int, list[int]] = {}
     for j, (mi, k) in enumerate(zip(mcc_idx, loc_idx, strict=True)):
@@ -193,21 +202,27 @@ def build_world(cfg: SimConfig, rng: np.random.Generator) -> World:
             by_loc.setdefault((int(mi), int(k)), []).append(j)
 
     n = cfg.n_customers
+    # Customers live in metros by population weight, then jitter around the metro centre.
     cust_loc = rng.choice(N_LOC, size=n, p=pop_w)
     cust_home = np.vstack(
         [jitter(rng, LOCATIONS[k][1], LOCATIONS[k][2], CUSTOMER_JITTER_KM) for k in cust_loc]
     )
     total = cfg.total_seconds
+    # Late joiners open an account at a random time; everyone else exists from the start.
     late = rng.random(n) < cfg.late_joiner_share
     cust_start = np.where(late, rng.uniform(0, total, size=n), 0.0).astype(np.int64)
+    # Spend intensity is lognormal around the config mean, so a few customers are very busy.
     cust_rate = cfg.mean_txn_per_day * rng.lognormal(-0.18, 0.6, size=n)
     cust_scale = rng.lognormal(0.0, 0.45, size=n)
     base = np.array([MCC_BASE_WEIGHT[int(m)] for m in MCC_CODES], dtype=float)
+    # Each wallet is a Dirichlet draw around the population mix; concentration sets its spread.
     cust_mcc_p = rng.dirichlet(base / base.sum() * WALLET_CONCENTRATION, size=n)
     cust_devices = np.column_stack(
         [CUSTOMER_DEVICE_BASE + 2 * np.arange(n), CUSTOMER_DEVICE_BASE + 1 + 2 * np.arange(n)]
     )
+    # An upgrade time is drawn for everyone; only the upgrading share will use it.
     upgrade = rng.uniform(0, total, size=n)
+    # Non-upgraders get an infinite upgrade time, so device_at never switches them.
     cust_upgrade_ts = np.where(rng.random(n) < PHONE_UPGRADE_SHARE, upgrade, np.inf)
 
     return World(

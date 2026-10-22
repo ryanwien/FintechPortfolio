@@ -117,6 +117,8 @@ def _respond(
     body: dict[str, Any], idem: IdempotencyKey | None, status: int = HTTP_CREATED
 ) -> JSONResponse:
     """Wrap ``body`` in a JSON response, flagging replayed idempotent requests."""
+    # Only a replayed response gets the header, so a first response looks the same as one sent
+    # without a key.
     headers = {"Idempotent-Replayed": "true"} if idem is not None and idem.replayed else {}
     return JSONResponse(body, status_code=status, headers=headers)
 
@@ -135,8 +137,10 @@ def _idempotency(key: str | None) -> IdempotencyKey | None:
 
 def create_app(ledger: Ledger | None = None) -> FastAPI:
     """Build the app around ``ledger`` (default: a file ledger at ``$LEDGER_DB``)."""
+    # Tests pass a ready Ledger. The server falls back to the database file named by LEDGER_DB.
     ledger = ledger if ledger is not None else Ledger(os.environ.get("LEDGER_DB", DEFAULT_DB_PATH))
     app = FastAPI(title="Ledger & Payments API", version="1.0.0")
+    # Stored on app.state so the get_ledger dependency can find it on every request.
     app.state.ledger = ledger
 
     def get_ledger(request: Request) -> Ledger:
@@ -150,6 +154,7 @@ def create_app(ledger: Ledger | None = None) -> FastAPI:
         """Map a LedgerError to its stable ``code`` and HTTP status."""
         return _error(exc.code, str(exc), exc.http_status)
 
+    # Replaces FastAPI's default 422 body with the same error envelope every other error uses.
     @app.exception_handler(RequestValidationError)
     async def request_error(_: Request, exc: RequestValidationError) -> JSONResponse:
         """Report failed request validation as 422 with per-field details."""
@@ -160,6 +165,8 @@ def create_app(ledger: Ledger | None = None) -> FastAPI:
             details=jsonable_encoder(exc.errors()),
         )
 
+    # Backstop for constraint violations the service did not check first. They become 409s rather
+    # than 500s.
     @app.exception_handler(sqlite3.IntegrityError)
     async def integrity_error(_: Request, exc: sqlite3.IntegrityError) -> JSONResponse:
         """Map a SQLite constraint violation to a 409 response."""
@@ -213,6 +220,8 @@ def create_app(ledger: Ledger | None = None) -> FastAPI:
         """
         k = _idempotency(key)
         entry = lg.post_entry(
+            # The service takes plain dicts, so the Pydantic models are flattened here and never
+            # leave the API layer.
             [p.model_dump() for p in body.postings],
             description=body.description,
             effective_date=body.effective_date,
@@ -252,6 +261,7 @@ def create_app(ledger: Ledger | None = None) -> FastAPI:
         Retries with the same ``Idempotency-Key`` return the original reversal.
         """
         k = _idempotency(key)
+        # The body is optional, so a bare POST reverses with no description.
         description = body.description if body else None
         return _respond(lg.reverse_entry(entry_id, description=description, idempotency=k), k)
 
@@ -290,6 +300,8 @@ def create_app(ledger: Ledger | None = None) -> FastAPI:
         Returns 200 with the updated payment, or 409 if the payment is not pending.
         """
         k = _idempotency(key)
+        # Capture changes an existing payment rather than creating one, so the response is 200, not
+        # 201.
         return _respond(lg.capture_payment(payment_id, idempotency=k), k, HTTP_OK)
 
     @app.post("/v1/payments/{payment_id}/fail")
@@ -301,6 +313,7 @@ def create_app(ledger: Ledger | None = None) -> FastAPI:
         Returns 200 with the updated payment, or 409 if the payment is not pending.
         """
         k = _idempotency(key)
+        # No body means no reason. The empty string is the service's own default.
         reason = body.reason if body else ""
         return _respond(lg.fail_payment(payment_id, reason=reason, idempotency=k), k, HTTP_OK)
 

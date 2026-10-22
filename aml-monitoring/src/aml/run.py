@@ -36,15 +36,27 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
     ap.add_argument("--out", default="results")
     args = ap.parse_args(argv)
 
+    # Wall-clock timer, used only in the final summary line; no written file depends on it.
     t0 = time.perf_counter()
+    # Load the config first: the run tag and every threshold come from it, so nothing runs before
+    # it.
     cfg = load_config(args.config)
+    # The world is a pure function of seed and size, so every later stage sees identical data on
+    # each run.
     world = generate_world(args.seed, args.customers)
+    # Detection runs the rules over the world; the customer network it returns feeds case building.
     det = run_detection(world, cfg)
+    # Alerts are grouped into cases and scored with the configured weights.
     cases = build_cases(world, det.alerts, det.network_of(), cfg.scoring)
+    # Every case action goes into one hash-chained audit log.
     audit = AuditLog()
+    # Simulated analyst work runs in time order and writes each step to the audit log.
     work_cases(world, cases, cfg, audit)
+    # Verify the chain at the end, so the results record whether the log is intact.
     verified = audit.verify()
 
+    # Metrics are built in stages: run identity first, then core evaluation, audit status and
+    # sweeps.
     metrics: dict[str, Any] = {"config": cfg.tag(), "seed": args.seed}
     metrics.update(evaluate(world, det, cases, cfg))
     metrics["audit"] = {
@@ -52,18 +64,25 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
         "verified": verified.ok,
         "head_hash": audit.head,
     }
+    # Sweeps are extra analyses over the same data: the case line moves, and single rules re-run
+    # with shifted thresholds.
     metrics["line_sweep"] = line_sweep(world, cases)
     metrics["rule_sweeps"] = rule_sweeps(world, det, cfg)
     metrics["degree_thresholds"] = det.degree_thresholds
+    # Pick the sample case once, so the same case is written to sample_case.md on every run.
     sample = pick_sample_case(cases)
 
+    # Everything goes under --out; the directory is created if it does not exist yet.
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
+    # metrics.json is the machine-readable source; the other files are rendered from the metrics or
+    # the case.
     _write_json(out / "metrics.json", metrics)
     (out / "REPORT.md").write_text(render_report(metrics), encoding="utf-8")
     (out / "sample_case.md").write_text(render_sample_case(world, sample, audit), encoding="utf-8")
     _write_json(out / "site.json", build_site(metrics))
 
+    # The console summary reads the numbers just written, so it cannot disagree with the files.
     de, al = metrics["detection"], metrics["alerts"]
     print(
         f"{len(world.customers)} customers, {len(world.txns)} txns, {al['total']} alerts "

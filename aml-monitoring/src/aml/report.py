@@ -31,6 +31,7 @@ def pct(x: float) -> str:
 def pick_sample_case(cases: list[Case]) -> Case:
     """Most illustrative case: a filed network case, else a filed multi-family case,
     else the top case above the line, else the first case."""
+    # Try the most illustrative predicates in order; the first group that is not empty wins.
     for pred in (
         lambda c: c.network_id and c.disposition == "SAR_FILED",
         lambda c: c.disposition == "SAR_FILED" and len(c.families) >= MULTI_FAMILY_MIN,
@@ -38,12 +39,15 @@ def pick_sample_case(cases: list[Case]) -> Case:
     ):
         found = [c for c in cases if pred(c)]
         if found:
+            # Within that group, the highest score (then the id) wins, so the choice is
+            # deterministic.
             return min(found, key=lambda c: (-c.score, c.case_id))
     return cases[0]
 
 
 def render_sample_case(world: World, case: Case, audit: AuditLog) -> str:
     """Markdown case file: summary, score breakdown, alerts, narrative, audit trail."""
+    # Only this case's entries are shown; the hash chain itself is global across every case.
     entries = audit.for_case(case.case_id)
     lines = [
         f"# Case file {case.case_id}",
@@ -63,6 +67,7 @@ def render_sample_case(world: World, case: Case, audit: AuditLog) -> str:
         "",
         "## Score breakdown",
         "",
+        # Show the score's parts so a reviewer can see how the total was built up.
         f"- Rule contributions (weight x signal, pts): "
         f"{json.dumps(case.breakdown['rule_contributions'])}",
         f"- Corroboration bonus: {case.breakdown['corroboration_bonus']} pts",
@@ -96,6 +101,8 @@ def render_sample_case(world: World, case: Case, audit: AuditLog) -> str:
         "",
         "## SAR-candidate narrative",
         "",
+        # Use the stored narrative when the case was escalated; otherwise draft one now so the file
+        # is never empty.
         case.narrative or draft_narrative(world, case),
         "",
         "## Audit trail",
@@ -112,11 +119,16 @@ def render_sample_case(world: World, case: Case, audit: AuditLog) -> str:
             f"| {e.seq} | {fmt_ts(e.ts)} | {e.actor} | {e.action} | {det} | "
             f"`{e.prev_hash[:HASH_PREVIEW_CHARS]}` | `{e.entry_hash[:HASH_PREVIEW_CHARS]}` |"
         )
+    # Verify the real log first; the tamper demonstration below runs on a copy and never touches it.
     full = audit.verify()
     # tamper demonstration on a copy: rewrite one of this case's entries
+    # Copy the entries so the edit lives only in memory.
     tampered = list(audit.entries)
+    # Tamper with the middle entry of this case; its seq is a global index into the copy.
     target = entries[len(entries) // 2]
+    # Adding a field changes the content, so it no longer matches the stored hash.
     tampered[target.seq] = replace(target, details=(*target.details, ("edited", "true")))
+    # Verification should fail at exactly that entry, which the line below reports.
     bad = verify_chain(tampered)
     lines += [
         "",
@@ -169,6 +181,8 @@ def render_report(m: dict[str, Any]) -> str:
         "|---|---:|---:|---:|---:|---|",
     ]
     for typ, d in de["per_typology"].items():
+        # One row per typology; the variants are flattened into one cell so each typology stays on
+        # one line.
         var = "; ".join(
             f"{k}: {v['instances']}/{v['alerted']}/{v['at_line']}"
             for k, v in d["by_variant"].items()
@@ -217,8 +231,12 @@ def render_report(m: dict[str, Any]) -> str:
             f"| {p['line']:.0f} | {p['cases']} | {p['cases_per_1k']} | "
             f"{pct(p['detection_rate'])} | {pct(p['case_precision'])} |"
         )
+    # Sweep tables follow: one per rule, showing how precision and target detection move with the
+    # threshold.
     lines += ["", "## Rule threshold sweeps (one rule at a time)", ""]
     for name, pts in m["rule_sweeps"].items():
+        # Every point in one sweep shares a target typology, so the table header can take it from
+        # the first point.
         target = pts[0]["target_typology"]
         lines += [
             f"**{name}** (target typology: {target})",
@@ -245,6 +263,8 @@ def build_site(m: dict[str, Any]) -> dict[str, Any]:
         "scored case queue with hash-chained audit trail and SAR narrative drafts.",
         "lane": "Financial crime & compliance",
         "stack": ["Python", "networkx"],
+        # Dashboard cards carry pre-formatted strings, so the front end needs no knowledge of units
+        # or rounding.
         "metrics": [
             {
                 "label": "Typology detection at the line",
@@ -293,6 +313,8 @@ def build_site(m: dict[str, Any]) -> dict[str, Any]:
             "Analyst decisions are simulated from ground truth with noise, not real reviews",
             "No sanctions/name screening, adverse media or entity resolution",
         ],
+        # The headline chart plots detection against workload from the line sweep, the central
+        # trade-off.
         "series": {
             "name": "Typology detection rate vs cases per 1k customers (case-score line sweep)",
             "x": [p["cases_per_1k"] for p in m["line_sweep"]],

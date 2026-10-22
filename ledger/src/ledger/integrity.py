@@ -58,12 +58,17 @@ def trial_balance(conn: sqlite3.Connection) -> TrialBalance:
 
 def derived_totals(conn: sqlite3.Connection) -> dict[str, Totals]:
     """Recompute every account's totals from the journal and open holds."""
+    # Start every account at zero, so accounts with no postings still get a row to compare against
+    # the cache.
     totals = {r["id"]: zero_delta() for r in conn.execute("SELECT id FROM accounts")}
+    # Posted totals: one sum per (account, direction). Each group occurs once, so assigning is safe.
     for r in conn.execute(
         "SELECT account_id, direction, SUM(amount) AS s FROM postings "
         "GROUP BY account_id, direction"
     ):
         totals[r["account_id"]][posted_index(Direction(r["direction"]))] = r["s"]
+    # Open holds are pending payments. Their source and destination sides fill the pending totals
+    # that apply_deltas maintains.
     for r in conn.execute(
         "SELECT source_account_id AS a, SUM(amount) AS s FROM payments "
         "WHERE status = 'pending' GROUP BY a"
@@ -74,6 +79,8 @@ def derived_totals(conn: sqlite3.Connection) -> dict[str, Totals]:
         "WHERE status = 'pending' GROUP BY a"
     ):
         totals[r["a"]][PENDING_CREDITS] += r["s"]
+    # The lists were used for mutation. Tuples match the shape row_totals() returns, so the
+    # comparison is direct.
     return {k: (v[0], v[1], v[2], v[3]) for k, v in totals.items()}
 
 
@@ -89,7 +96,11 @@ def read_snapshot(conn: sqlite3.Connection) -> IntegritySnapshot:
 def evaluate(snapshot: IntegritySnapshot) -> dict[str, Any]:
     """The verification report; ``ok`` is true only if every check passes."""
     tb, derived, rows = snapshot.trial_balance, snapshot.derived_totals, snapshot.accounts
+    # Cached totals must equal the ones re-derived from the journal and holds. Any difference means
+    # a write skipped apply_deltas.
     cache_mismatches = sorted(r["id"] for r in rows if row_totals(r) != derived[r["id"]])
+    # The overdraft rule is rechecked from the derived totals, not the cache, so this check does not
+    # depend on the cached columns.
     overdrafts = sorted(
         r["id"]
         for r in rows

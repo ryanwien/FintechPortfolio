@@ -69,7 +69,10 @@ def build_settlement_scenario(
             seq += 1
             wallet = rng.choice(wallets)
             roll = rng.random()
+            # Day 0 always deposits, so wallets have money for the payouts later in the month.
             if roll < DEPOSIT_SHARE or day == 0:
+                # The cents jitter keeps amounts from clustering on round numbers, which would look
+                # artificial.
                 amount = rng.randint(MIN_DEPOSIT, MAX_DEPOSIT) + rng.randint(0, MAX_CENTS_JITTER)
                 ledger.post_entry(
                     [
@@ -82,10 +85,16 @@ def build_settlement_scenario(
                 )
                 deposits += 1
             elif roll < PAYOUT_SHARE_CUMULATIVE:
+                # A payout is sized against available, not posted, so funds already under an open
+                # hold cannot be spent twice.
                 available = ledger.get_balance(wallet)["available"]
+                # An empty or near-empty wallet just skips this movement. The rest of the month
+                # still runs.
                 if available < MIN_PAYOUT:
                     continue
                 amount = rng.randint(MIN_PAYOUT, min(available, MAX_PAYOUT))
+                # Some payouts are authorized first and captured or failed later, so the hold
+                # lifecycle gets exercised.
                 capture_now = rng.random() < IMMEDIATE_CAPTURE_PROBABILITY
                 try:
                     pay = ledger.create_payment(
@@ -98,8 +107,11 @@ def build_settlement_scenario(
                         external_ref=f"WD-{seq:06d}",
                         effective_date=d,
                     )
+                # Skip this movement rather than abort the whole month over one refused payout.
                 except InsufficientFundsError:
                     continue
+                # Held payouts settle on a later step: most are captured, and the rest fail and
+                # release their hold.
                 if not capture_now:
                     if rng.random() < CAPTURE_AFTER_HOLD_PROBABILITY:
                         ledger.capture_payment(pay["id"], effective_date=d)
@@ -109,6 +121,8 @@ def build_settlement_scenario(
                         continue
                 payouts += 1
             else:
+                # The last branch is the monthly fee. It is charged only when the wallet can cover
+                # it, so the fee call never raises.
                 available = ledger.get_balance(wallet)["available"]
                 if available >= MONTHLY_FEE:
                     ledger.create_payment(

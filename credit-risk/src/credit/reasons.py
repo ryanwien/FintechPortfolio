@@ -54,14 +54,19 @@ def reason_codes(
     Ties are broken by column order so output is deterministic. Attributes on which the
     applicant lost no points are never cited.
     """
+    # Fix the column order once; ties in points lost are broken by these positions.
     cols = list(points.columns)
     maxes = np.array([max_points[c] for c in cols])
+    # Points lost = best attainable minus received. Zero means the best bin was received.
     lost = maxes[None, :] - points.to_numpy()
     out: list[list[Reason]] = []
     for row in lost:
+        # Most points lost first. The column index as a second key keeps ties deterministic.
         order = sorted(range(len(cols)), key=lambda j: (-row[j], j))
         reasons = []
         for j in order[:top_n]:
+            # The list is sorted descending, so the first zero-loss attribute ends it: every
+            # attribute after it also has zero loss.
             if row[j] <= _MIN_POINTS_LOST:
                 break
             code, text = REASON_CODES[cols[j]]

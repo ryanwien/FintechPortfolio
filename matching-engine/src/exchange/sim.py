@@ -92,8 +92,11 @@ class FundamentalProcess:
     def step(self) -> float:
         """Possibly switch regime, then move the value by drift + vol * N(0, 1)."""
         rng = self.rng
+        # Regime switches are rare (stay prob ~0.997), so each regime lasts a long stretch. The new
+        # regime is drawn from the others, so a switch always changes it.
         if rng.random() > self.cfg.regime_stay_prob:
             self.regime = rng.choice([r for r in REGIMES if r != self.regime])
+        # The value moves by regime drift plus Gaussian noise scaled by regime volatility.
         drift, vol = REGIME_PARAMS[self.regime]
         self.value += drift + vol * rng.gauss(0.0, 1.0)
         return self.value
@@ -134,13 +137,17 @@ class BackgroundMarket:
         rng, cfg = self.rng, self.cfg
         side = random_side(rng)
         depth = 1 + int(rng.expovariate(1.0 / cfg.maker_mean_depth))
+        # Bids sit below ceil(v) and asks above floor(v), so a maker never quotes through value.
         price = math.ceil(v) - depth if side is Side.BUY else math.floor(v) + depth
+        # Skip a quote the engine would reject. Checked before _oid so no id is wasted.
         if price <= 0:
             return
         oid = self._oid()
         owner = MAKER_OWNERS[rng.randrange(len(MAKER_OWNERS))]
         qty = cfg.lot * rng.randint(1, cfg.maker_max_lots)
         self.exec(NewOrder(oid, owner, side, OrdType.POST_ONLY, qty, price))
+        # A post-only order may be rejected for crossing. Only orders that actually rest are tracked
+        # for later cancel or cull.
         if self.eng.has_order(oid):
             self.maker_orders.append(oid)
             self.maker_price[oid] = price
@@ -161,6 +168,7 @@ class BackgroundMarket:
         """
         lst = self.maker_orders
         while lst:
+            # Draw a random tracked quote. Stale ids (filled or culled) are dropped and redrawn.
             oid = self._drop(self.rng.randrange(len(lst)))
             if self.eng.has_order(oid):
                 self.exec(Cancel(oid))
@@ -172,9 +180,13 @@ class BackgroundMarket:
         lst = self.maker_orders
         while i < len(lst):
             oid = lst[i]
+            # _drop swap-removes, so index i must not advance after a drop. The list is walked in
+            # place.
             if not self.eng.has_order(oid):
                 self._drop(i)
                 continue
+            # Quotes that drifted too far from value are pulled, so stale liquidity does not build
+            # up.
             if abs(self.maker_price[oid] - v) > self.cfg.cull_distance:
                 self._drop(i)
                 self.exec(Cancel(oid))
@@ -194,9 +206,12 @@ class BackgroundMarket:
 
         # Informed flow reacts first to the new value: picks off stale quotes.
         if rng.random() < cfg.informed_prob:
+            # Informed traders take only quotes at least informed_edge mispriced, never fair ones.
             ask, bid = eng.best_ask(), eng.best_bid()
             informed_qty = cfg.informed_lots * cfg.lot
             if ask is not None and ask <= v - cfg.informed_edge:
+                # The IOC limit sits halfway between value and the threshold: it crosses the
+                # mispriced ask but refuses to pay up to value.
                 px = math.floor(v - cfg.informed_edge / 2)
                 self.exec(
                     NewOrder(self._oid(), INFORMED_OWNER, Side.BUY, OrdType.IOC, informed_qty, px)
@@ -207,15 +222,20 @@ class BackgroundMarket:
                     NewOrder(self._oid(), INFORMED_OWNER, Side.SELL, OrdType.IOC, informed_qty, px)
                 )
 
+        # Noise traders send random-side market orders. They pay the spread, which is where makers
+        # earn it.
         if rng.random() < cfg.noise_prob:
             side = random_side(rng)
             qty = cfg.lot * rng.randint(1, cfg.noise_max_lots)
             self.exec(NewOrder(self._oid(), NOISE_OWNER, side, OrdType.MARKET, qty))
 
+        # Quote churn: a few random cancels, then new quotes. Adds outnumber cancels, so the culls
+        # below keep the population bounded.
         for _ in range(cfg.maker_cancels_per_step):
             self._maker_cancel_random()
         for _ in range(cfg.maker_adds_per_step):
             self._maker_add(v)
+        # Culling runs periodically, not every step, to amortise the scan over cull_every steps.
         if t % cfg.cull_every == 0:
             self._cull(v)
         return v

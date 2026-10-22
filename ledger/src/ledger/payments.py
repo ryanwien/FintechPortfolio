@@ -58,12 +58,15 @@ class PaymentLifecycle:
         effective_date: str | None,
     ) -> str:
         """Insert a payment and either post it immediately or place a hold."""
+        # Load both accounts once. The currency check and the hold below use the same rows.
         accounts = repository.load_accounts(conn, [source_account_id, destination_account_id])
         for a in accounts.values():
             if a["currency"] != currency:
                 raise CurrencyMismatchError(
                     f"account {a['id']} is denominated in {a['currency']}, not {currency}"
                 )
+        # The payment row and its first event are written before any money moves, so the audit trail
+        # starts at pending.
         pid = repository.new_id("pay")
         repository.insert_payment(
             conn,
@@ -77,6 +80,8 @@ class PaymentLifecycle:
             now=self._clock.timestamp(),
         )
         self._record_event(conn, pid, None, PaymentStatus.PENDING, None, None)
+        # Immediate capture posts now. A held payment only reserves funds until it is captured or
+        # failed.
         if capture:
             entry_id = self._journal.write_entry(
                 conn,
@@ -90,6 +95,8 @@ class PaymentLifecycle:
                 conn, pid, PaymentStatus.PENDING, PaymentStatus.POSTED, entry_id=entry_id
             )
         else:
+            # Authorization: only the pending totals move. Nothing is journaled until the payment is
+            # captured.
             apply_deltas(
                 conn, hold_deltas(source_account_id, destination_account_id, amount), accounts
             )
@@ -100,6 +107,7 @@ class PaymentLifecycle:
     ) -> None:
         """Post a held payment's entry and release its hold atomically."""
         pay = repository.load_payment(conn, payment_id)
+        # Check the state machine before writing anything. Only a pending payment can be captured.
         assert_transition(pay["status"], PaymentStatus.POSTED)
         src, dst, amt = pay["source_account_id"], pay["destination_account_id"], pay["amount"]
         entry_id = self._journal.write_entry(
@@ -109,6 +117,8 @@ class PaymentLifecycle:
             effective_date=effective_date,
             external_ref=pay["external_ref"],
             payment_id=payment_id,
+            # The hold release goes in the same balance update as the postings, so funds are never
+            # counted as both held and posted.
             extra_deltas=release_hold_deltas(src, dst, amt),
         )
         self._transition(
@@ -118,8 +128,11 @@ class PaymentLifecycle:
     def fail(self, conn: sqlite3.Connection, payment_id: str, *, reason: str) -> None:
         """Release a held payment's hold; nothing is written to the journal."""
         pay = repository.load_payment(conn, payment_id)
+        # Failing is valid only while pending. A posted payment must be reversed instead.
         assert_transition(pay["status"], PaymentStatus.FAILED)
         src, dst, amt = pay["source_account_id"], pay["destination_account_id"], pay["amount"]
+        # Only the hold is released. Failing writes nothing to the journal, so the posted totals do
+        # not change.
         apply_deltas(
             conn, release_hold_deltas(src, dst, amt), repository.load_accounts(conn, [src, dst])
         )
@@ -130,6 +143,8 @@ class PaymentLifecycle:
     def reverse(self, conn: sqlite3.Connection, pay: sqlite3.Row, description: str | None) -> str:
         """Reverse a posted payment's entry; returns the reversal entry id."""
         assert_transition(pay["status"], PaymentStatus.REVERSED)
+        # Journal the reversal first, then move the status. Both happen in one transaction, so they
+        # succeed or fail together.
         rev_id = self._journal.write_reversal(conn, pay["entry_id"], description, pay["id"])
         self._transition(
             conn,
@@ -156,6 +171,7 @@ class PaymentLifecycle:
         Validates the transition, then compare-and-sets the status. Raises
         ConcurrencyConflictError if the payment is no longer in ``current``.
         """
+        # Reject an illegal move before the UPDATE, so only valid transitions reach the database.
         assert_transition(current, target)
         changed = repository.update_payment_status(
             conn,
@@ -169,6 +185,8 @@ class PaymentLifecycle:
         )
         if not changed:  # compare-and-set on status
             raise ConcurrencyConflictError(f"payment {payment_id} is no longer {current}")
+        # Reached only after a successful compare-and-set, so every audit row follows a real status
+        # change.
         self._record_event(conn, payment_id, current, target, entry_id or reversal_entry_id, reason)
 
     def _record_event(

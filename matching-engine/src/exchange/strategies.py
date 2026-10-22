@@ -96,6 +96,7 @@ class MarketMaker(Strategy):
     def _best_other(levels: L2Levels, mine: OrderState) -> int | None:
         """Best price with liquidity from someone other than us (our own size netted out)."""
         for price, qty in levels:
+            # Subtract our own resting size at this price so our quote is not read as competition.
             others_qty = qty - mine[2] if mine is not None and mine[1] == price else qty
             if others_qty > 0:
                 return price
@@ -106,14 +107,18 @@ class MarketMaker(Strategy):
     ) -> int | None:
         """Move our quote on one side to ``want`` (None = pull it); returns the live id."""
         st = gw.order_state(oid) if oid is not None else None
+        # None means pull the quote (position limit). Cancel only if it is still live.
         if want is None:
             if st is not None:
                 cmds.append(Cancel(oid))
             return None
+        # Filled or never posted: post a fresh quote and track its new id.
         if st is None:
             nid = self.new_id()
             cmds.append(NewOrder(nid, self.owner, side, OrdType.POST_ONLY, self.size, want))
             return nid
+        # Same price: leave it alone so the queue position is kept. Only a repriced quote is
+        # replaced.
         if st[1] != want:
             cmds.append(Replace(oid, want, self.size))
         return oid
@@ -126,14 +131,21 @@ class MarketMaker(Strategy):
         """
         bid_st = gw.order_state(self.bid_id) if self.bid_id is not None else None
         ask_st = gw.order_state(self.ask_id) if self.ask_id is not None else None
+        # Join the best quote from other participants. Our own size at each price is ignored.
         bb = self._best_other(view.bids, bid_st)
         ba = self._best_other(view.asks, ask_st)
         cmds: list[Command] = []
         if bb is None or ba is None:
             return cmds
+        # Inventory skew in whole ticks. int() truncates toward zero, so a small position does not
+        # skew the quotes at all.
         k = int(view.position / self.skew_per)  # long => shade both quotes down
+        # Clamp so the bid never reaches the best other ask and the ask never reaches the best other
+        # bid: we never quote a crossing price.
         want_bid = min(bb - k, ba - 1)
         want_ask = max(ba - k, bb + 1)
+        # At the position limit the side that would add inventory is pulled. The other side keeps
+        # quoting so the position can unwind.
         if view.position >= self.max_pos:
             want_bid = None
         if view.position <= -self.max_pos:
@@ -185,9 +197,13 @@ class Momentum(Strategy):
         ``slip_cap`` ticks through the touch.
         """
         m = view.mids_x2
+        # Not enough history for the lookback, or a side is empty: no signal, no orders.
         if len(m) <= self.lookback or not view.bids or not view.asks:
             return []
+        # mids_x2 are doubled, so halve the difference to get the mid move in ticks.
         signal = (m[-1] - m[-1 - self.lookback]) / 2  # ticks
+        # Hysteresis: between exit and entry the previous target is held, so a signal near the
+        # threshold does not flip the position every step.
         if signal > self.entry:
             self.want = self.target
         elif signal < -self.entry:
@@ -197,9 +213,14 @@ class Momentum(Strategy):
         delta = self.want - view.position
         if delta == 0:
             return []
+        # Trade toward the target in clips of at most `clip` shares, limiting how far one IOC can
+        # walk the book.
         qty = min(abs(delta), self.clip)
         if delta > 0:
+            # Priced slip_cap ticks through the ask: it fills at the touch when there is size and
+            # sweeps at most slip_cap deeper.
             px = view.asks[0][0] + self.slip_cap
             return [NewOrder(self.new_id(), self.owner, Side.BUY, OrdType.IOC, qty, px)]
+        # Priced slip_cap ticks through the bid, the mirror of the buy case.
         px = view.bids[0][0] - self.slip_cap
         return [NewOrder(self.new_id(), self.owner, Side.SELL, OrdType.IOC, qty, px)]

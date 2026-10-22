@@ -34,7 +34,9 @@ RULES: Final[list[tuple[str, int, str]]] = [
 def rule_hits(X: np.ndarray) -> np.ndarray:
     """(n, len(RULES)) boolean matrix: which rule fires for which transaction."""
     f = F_INDEX
+    # Features hold log1p(dollars); invert it so the rule thresholds are in dollars.
     dollars = np.expm1(X[:, f["amount_log"]])
+    # One column per rule, in RULES order; rule_score relies on that order for weights.
     return np.column_stack(
         [
             X[:, f["cnt_1h"]] >= 3,
@@ -55,5 +57,6 @@ def rule_hits(X: np.ndarray) -> np.ndarray:
 
 def rule_score(X: np.ndarray) -> np.ndarray:
     """Sum of points of the rules that fire, per transaction."""
+    # Points per rule, in the same order as the columns of rule_hits.
     weights = np.array([w for _, w, _ in RULES], dtype=np.float64)
     return rule_hits(X).astype(np.float64) @ weights

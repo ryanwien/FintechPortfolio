@@ -16,6 +16,7 @@ NS_PER_US: Final = 1_000
 
 def fmt_usd(x: float) -> str:
     """``$1,234.50`` / ``-$1,234.50``."""
+    # The sign goes before the dollar sign: -$1.00, not $-1.00.
     return f"-${abs(x):,.2f}" if x < 0 else f"${x:,.2f}"
 
 
@@ -84,6 +85,7 @@ def _backtest_section(m: Metrics) -> list[str]:
         """Append one markdown table row with a dollar value per strategy."""
         row(label, fmt_usd(pick(mm)), fmt_usd(pick(mo)))
 
+    # Net first, then the costs-ignored view and the two components that bridge it to net.
     usd_row("**net PnL**", lambda s: s["net_pnl_usd"])
     usd_row("PnL with costs ignored (fills at mid, no fees)", lambda s: s["costs_ignored_pnl_usd"])
     usd_row(
@@ -106,6 +108,7 @@ def _backtest_section(m: Metrics) -> list[str]:
         "{mean_abs} / {max_abs} / {final}".format(**mm["inventory"]),
         "{mean_abs} / {max_abs} / {final}".format(**mo["inventory"]),
     )
+    # Queue position exists only for resting orders, so momentum (IOC only) has no value.
     row("avg shares queued ahead when booked", mm["avg_queue_ahead_shares"], "n/a (IOC only)")
     lines += ["", f"Regime mix (steps): {_counts(mm['regime_steps'])}.", ""]
     return lines
@@ -114,6 +117,7 @@ def _backtest_section(m: Metrics) -> list[str]:
 def _robustness_section(m: Metrics) -> list[str]:
     """Markdown lines showing sign and Sharpe stability across the robustness seeds."""
     rob = m["seed_robustness"]
+    # Every strategy ran the same seeds, so the first strategy's rows give the header list.
     seeds = [r["seed"] for r in next(iter(rob.values()))["rows"]]
     lines = [
         f"## Seed robustness ({len(seeds)} seeds: {', '.join(map(str, seeds))})",
@@ -170,6 +174,7 @@ def site_json(m: Metrics) -> dict[str, Any]:
     mm = m["backtest"]["market_maker"]
     mo = m["backtest"]["momentum"]
     rob_mo = m["seed_robustness"]["momentum"]
+    # Only the net curve is charted here; the costs-ignored curve stays in metrics.json.
     s = m["series"]["momentum"]
     return {
         "slug": "exchange",

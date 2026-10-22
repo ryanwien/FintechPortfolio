@@ -100,16 +100,24 @@ class Ledger:
         Failed operations roll back and store nothing, so a client may retry the
         same key after, say, funding an account.
         """
+        # Calls without a key skip the record entirely, so they need only the one transaction.
         if idempotency is None:
             with self._tx() as conn:
                 return fn(conn)
+        # Reject a malformed key before taking the write lock, so a bad request costs no lock time.
         idem.validate_key(idempotency)
         with self._tx() as conn:
+            # The lookup and the effect share one BEGIN IMMEDIATE transaction, so a concurrent retry
+            # either sees the stored response or waits for the write lock.
             fp = idem.fingerprint(op, params)
             stored = idem.stored_response(conn, idempotency, fp)
             if stored is not None:
                 return stored
+            # Reached only on a first execution. If fn raises, the transaction rolls back and no key
+            # is stored.
             result = fn(conn)
+            # Stored inside the same transaction as the effect, so the record commits or rolls back
+            # with it.
             idem.record_response(conn, idempotency, fp, result, created_at=self._clock.timestamp())
             return result
 
@@ -129,6 +137,8 @@ class Ledger:
         Raises ValidationError for an unknown type, a malformed currency or an empty or
         overlong name.
         """
+        # Validate every input before the transaction opens, so a bad request never takes the write
+        # lock.
         try:
             acct_type = AccountType(type)
         except ValueError as exc:
@@ -136,6 +146,8 @@ class Ledger:
         validate_currency(currency)
         if not name or len(name) > MAX_ACCOUNT_NAME_LENGTH:
             raise ValidationError(f"name must be 1-{MAX_ACCOUNT_NAME_LENGTH} characters")
+        # Every input that changes the outcome goes into params. It is the fingerprint an idempotent
+        # retry is checked against.
         params = {
             "name": name,
             "type": acct_type.value,
@@ -188,6 +200,8 @@ class Ledger:
         """
         with self._tx(write=False) as conn:
             acct = repository.load_account(conn, account_id)
+            # Postings store positive amounts plus a direction. Sign the result so a positive value
+            # always means the account's normal balance grew.
             sign = 1 if AccountType(acct["type"]).normal_side is Direction.DEBIT else -1
             rows = repository.account_activity_rows(conn, account_id, start=start, end=end)
         return [
@@ -215,6 +229,8 @@ class Ledger:
         idempotency: IdempotencyKey | None = None,
     ) -> dict[str, Any]:
         """Append one balanced journal entry (two or more postings)."""
+        # Normalize and validate the postings before the transaction starts, so bad input fails
+        # fast.
         specs = coerce_postings(postings)
         params = {
             "postings": [[p.account_id, p.direction.value, p.amount, p.currency] for p in specs],
@@ -256,11 +272,16 @@ class Ledger:
         with self._tx(write=False) as conn:
             if account_id is not None:
                 repository.load_account(conn, account_id)
+            # Fetch one row past the page size. Its presence tells us another page exists without a
+            # COUNT query.
             rows = repository.entry_page_rows(
                 conn, account_id=account_id, cursor=cursor, fetch=limit + 1
             )
             has_more = len(rows) > limit
+            # Drop the probe row. next_cursor comes from the last row returned, so the probe has to
+            # be removed first.
             rows = rows[:limit]
+            # One query fetches every posting on the page, instead of one query per entry.
             postings = repository.postings_for(conn, [r["id"] for r in rows])
             data = [repository.entry_dict(r, postings.get(r["id"], []), None) for r in rows]
         return {
@@ -285,8 +306,12 @@ class Ledger:
         def op(conn: sqlite3.Connection) -> dict[str, Any]:
             """The write itself, run inside the transaction that ``_execute`` opens."""
             entry = repository.load_entry(conn, entry_id)
+            # Entries that belong to a payment are reversed through the state machine, so the
+            # payment row and the journal change together.
             if entry["payment_id"] is not None:
                 pay = repository.load_payment(conn, entry["payment_id"])
+                # The reversal entry carries the same payment_id as the original. It is not the
+                # payment's own entry, so refuse to reverse it again.
                 if pay["entry_id"] != entry_id:
                     raise IllegalTransitionError(
                         "entry is itself a payment reversal and cannot be reversed"
@@ -321,6 +346,7 @@ class Ledger:
         """
         validate_amount(amount)
         validate_currency(currency)
+        # Checked here for a clean 422. The schema's CHECK constraint is the backstop.
         if source_account_id == destination_account_id:
             raise ValidationError("source and destination must differ")
         params = {
@@ -417,5 +443,7 @@ class Ledger:
         re-derived from the journal, and disallowed overdrafts.
         """
         with self._tx(write=False) as conn:
+            # Both reads happen in one read transaction, so the checks see a single consistent
+            # snapshot.
             snapshot = integrity.read_snapshot(conn)
         return integrity.evaluate(snapshot)

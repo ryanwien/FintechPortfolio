@@ -46,29 +46,42 @@ def gen_individual(
 ) -> str:
     """Create an individual with salary or pension; ``light`` skips spending activity."""
     rng = b.rng
+    # Occupation sets the salary band; when none is given, one is drawn from the population weights.
     occ = occupation or rng.choices(list(OCC_WEIGHTS), list(OCC_WEIGHTS.values()))[0]
     lo, hi = OCCUPATIONS[occ]
+    # Annual salary is drawn from the occupation's band; the monthly figure is one twelfth of it.
     annual = rng.randint(lo, hi) * 100
     monthly = annual // MONTHS_PER_YEAR
+    # KYC comes from the individual weights unless the caller pins one.
     kyc = kyc or b.draw_kyc(INDIVIDUAL_KYC_WEIGHTS)
+    # The declared profile is the monthly pay scaled by a random factor, so it is only roughly
+    # right.
     cid = b.customer("individual", occ, kyc, int(monthly * rng.uniform(0.85, 1.35)), onboarded_day)
     a = b.acct(cid)
+    # Pay and rent start from the onboarding day, so nobody has history from before they joined.
     start = onboarded_day
+    # Retirees get a fixed monthly pension instead of biweekly pay.
     if occ == "retired":
         for day in range(start + rng.randint(0, 4), PERIOD_DAYS, MONTH_DAYS):
             b.txn(ts_at(day, 6), "ach", "X:PENSION", a, monthly)
     else:
+        # One of 300 synthetic employer ids; pay then arrives on a fixed biweekly cadence.
         employer = f"X:EMP{rng.randrange(300):03d}"
         for day in range(start + rng.randint(0, 13), PERIOD_DAYS, BIWEEKLY_PAY_DAYS):
+            # Each paycheck is the per-period share of the annual salary, with a small random
+            # variation.
             pay = int(annual / PAY_PERIODS_PER_YEAR * rng.uniform(0.97, 1.03))
             b.txn(ts_at(day, 5, rng.randrange(60)), "ach", employer, a, pay)
+    # Light individuals stop here: just income, a thin profile used for typology subjects.
     if light:
         return cid
     landlord = f"X:LL{rng.randrange(900):03d}"
+    # Rent is 22-36% of monthly pay, a typical household share, paid to a landlord once a month.
     rent = int(monthly * rng.uniform(0.22, 0.36))
     for day in range(start + rng.randint(0, 4), PERIOD_DAYS, MONTH_DAYS):
         b.txn(ts_at(day, 9), "ach", a, landlord, rent)
     for month in range(start, PERIOD_DAYS, MONTH_DAYS):
+        # Routine bills: three to six small utility debits a month, each on a random day.
         for _ in range(rng.randint(3, 6)):
             day = month + rng.randrange(MONTH_DAYS)
             b.txn(
@@ -78,6 +91,7 @@ def gen_individual(
                 f"X:UTIL{rng.randrange(30):02d}",
                 rng.randint(40, 350) * 100,
             )
+        # One to three ATM cash withdrawals a month, in round amounts, at random ATMs.
         for _ in range(rng.randint(1, 3)):
             day = month + rng.randrange(MONTH_DAYS)
             amt = rng.choice((40, 60, 80, 100, 200, 300)) * 100
@@ -89,6 +103,8 @@ def gen_individual(
                 amt,
                 branch=f"ATM{rng.randrange(40):02d}",
             )
+        # In about 15% of months there is a cash deposit, log-normal around $400, at the home
+        # branch.
         if rng.random() < CASH_DEPOSIT_MONTH_P:
             day = month + rng.randrange(MONTH_DAYS)
             b.txn(
@@ -106,10 +122,14 @@ def gen_p2p(b: WorldBuilder, individuals: list[str]) -> None:
     """Small peer-to-peer payments among a few friends per individual."""
     rng = b.rng
     for cid in individuals:
+        # Each person has a fixed circle of friends; P2P payments only go within that circle.
         friends = rng.sample(individuals, P2P_FRIENDS)
         for month in range(0, PERIOD_DAYS, MONTH_DAYS):
+            # Zero to three P2P payments a month within the circle.
             for _ in range(rng.randint(0, 3)):
                 f = rng.choice(friends)
+                # Skip self-payments, since the friend circle is drawn from the whole population and
+                # may include cid.
                 if f == cid:
                     continue
                 day = month + rng.randrange(MONTH_DAYS)
@@ -149,12 +169,18 @@ def gen_business(
     if segment not in BUSINESS_SEGMENTS:
         raise UnknownSegmentError(f"unknown segment {segment}")
     rng = b.rng
+    # Default KYC depends on the segment's risk class; a caller can override it.
     if kyc is None:
         kyc = _default_business_kyc(b, segment)
+    # Scale multiplies the segment's activity sizes; it is drawn once per business, so a firm is
+    # consistently bigger or smaller.
     scale = scale if scale is not None else rng.uniform(0.6, 1.6)
+    # Create the customer first; its expected inflow is set at the end, once the credits are known.
     cid = b.customer("business", segment, kyc, 0, onboarded_day)
     books = BusinessBooks(b, cid, onboarded_day)
 
+    # Light shells use one thin profile regardless of segment; otherwise dispatch on segment.
+    # Each profile draws its randomness in a fixed order, so the world stays reproducible.
     if light:
         segments.shell_activity(books)
     elif segment in CASH_SEGMENTS:
@@ -174,6 +200,8 @@ def gen_business(
     else:  # pragma: no cover - BUSINESS_SEGMENTS and this dispatch must stay in sync
         raise UnknownSegmentError(f"no activity profile for segment {segment}")
 
+    # Expected inflow is the average monthly credit actually posted, with noise, so the profile is
+    # honest but imperfect.
     active_days = max(1, PERIOD_DAYS - onboarded_day)
     b.set_expected(cid, books.credited_cents * MONTH_DAYS / active_days * rng.uniform(0.85, 1.25))
     return cid

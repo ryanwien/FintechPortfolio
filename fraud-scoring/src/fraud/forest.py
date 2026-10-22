@@ -48,15 +48,18 @@ class CompiledForest:
 
         Raises ``ValueError`` for a model that is not binary classification.
         """
+        # One tree per boosting round; multiclass would need one tree per class per round.
         if est.n_trees_per_iteration_ != 1:
             raise ValueError("binary classification only")
         n_in = est.n_features_in_
         perm: list[int] = []
         cat_maps: dict[int, np.ndarray] = {}
+        # sklearn moves categorical columns and ordinal-encodes them; rebuild that column order.
         pre = getattr(est, "_preprocessor", None)
         if pre is None:
             perm = list(range(n_in))
         else:
+            # perm lists, for each estimator input slot, the caller column that feeds it.
             for name, trans, cols in pre.transformers_:
                 if name == "remainder" and trans == "drop":
                     continue
@@ -68,19 +71,23 @@ class CompiledForest:
         self.perm = np.array(perm, dtype=np.int64)
         self.cat_maps = cat_maps
 
+        # Categories seen in training, per feature: anything outside this set is an unseen code.
         known, f_idx_map = est._bin_mapper.make_known_categories_bitsets()
         self.known_bitsets = np.asarray(known, dtype=np.uint32)
         self.f_idx_map = np.asarray(f_idx_map, dtype=np.int64)
 
+        # Each tree's node table is appended to these lists, then concatenated into one table.
         feat, thr, left, right, leaf, is_cat, miss_left, bidx, value = ([] for _ in range(9))
         bitsets, roots = [], []
         node_off = bit_off = 0
         for (pred,) in est._predictors:
             nodes = pred.nodes
             n = len(nodes)
+            # A tree's root is the first row of its block in the flat table.
             roots.append(node_off)
             feat.append(nodes["feature_idx"].astype(np.int64))
             thr.append(nodes["num_threshold"].astype(np.float64))
+            # sklearn child pointers are per tree; the offset makes them index the flat table.
             left.append(nodes["left"].astype(np.int64) + node_off)
             right.append(nodes["right"].astype(np.int64) + node_off)
             leaf.append(nodes["is_leaf"].astype(bool))
@@ -88,12 +95,15 @@ class CompiledForest:
             miss_left.append(nodes["missing_go_to_left"].astype(bool))
             bidx.append(nodes["bitset_idx"].astype(np.int64) + bit_off)
             value.append(nodes["value"].astype(np.float64))
+            # A categorical split stores its left-going codes as a bitset of uint32 words.
             raw_bits = np.asarray(pred.raw_left_cat_bitsets, dtype=np.uint32).reshape(
                 -1, _BITSET_WORDS
             )
             bitsets.append(raw_bits)
+            # Advance both offsets past this tree so the next tree's indices do not collide.
             node_off += n
             bit_off += len(raw_bits)
+        # Concatenate the per-tree arrays into the flat tables that inference indexes.
         self.feat = np.concatenate(feat)
         self.thr = np.concatenate(thr)
         self.left = np.concatenate(left)
@@ -113,18 +123,23 @@ class CompiledForest:
         self.right[is_leaf] = ids[is_leaf]
         self.feat[is_leaf] = 0
         self.thr[is_leaf] = np.inf
+        # The lock-step walk runs as deep as the deepest tree; shallower trees wait on leaves.
         self.depth = int(max(p.get_max_depth() for (p,) in est._predictors))
 
         # Categorical splits -> lookup table [cat node, code]; last column = missing/negative.
         cat_nodes = np.flatnonzero(is_cat & ~is_leaf)
         self.cat_id = np.full(len(self.feat), -1, dtype=np.int64)
         self.cat_id[cat_nodes] = np.arange(len(cat_nodes))
+        # Precompute each categorical split's answer for every code, so inference is a lookup.
         table = np.zeros((max(1, len(cat_nodes)), _N_CAT_CODES + 1), dtype=bool)
         codes = np.arange(_N_CAT_CODES)
         for k, nd in enumerate(cat_nodes):
+            # Read each code's bit from the split's left-set bitset (32 codes per word).
             in_left = (raw_bits[bidx[nd], codes >> 5] >> (codes & 31).astype(np.uint32)) & 1
+            # Same bit trick on the training-time known set: separates seen codes from unseen ones.
             kb = self.known_bitsets[self.f_idx_map[self.feat[nd]], codes >> 5]
             known = (kb >> (codes & 31).astype(np.uint32)) & 1
+            # Unseen codes and the reserved missing slot both follow this node's missing direction.
             ml = bool(self.miss_left[nd])
             table[k, :_N_CAT_CODES] = np.where(in_left == 1, True, np.where(known == 1, False, ml))
             table[k, _N_CAT_CODES] = ml
@@ -133,11 +148,14 @@ class CompiledForest:
 
     def _transform(self, X: np.ndarray) -> np.ndarray:
         """Reorder columns as the estimator saw them and ordinal-encode categoricals."""
+        # Fancy indexing copies, so the caller's array is untouched, in estimator column order.
         z = np.asarray(X, dtype=np.float64)[:, self.perm]
         for pos, cats in self.cat_maps.items():
             v = z[:, pos]
+            # Position of a value in the sorted category list is its ordinal code.
             code = np.searchsorted(cats, v)
             safe = np.minimum(code, len(cats) - 1)
+            # A value is known only if it equals the category at that position; else it is missing.
             ok = (code < len(cats)) & (cats[safe] == v)
             z[:, pos] = np.where(ok, code, np.nan)  # unknown category -> missing
         return z
@@ -148,28 +166,38 @@ class CompiledForest:
         ``z`` must already be column-ordered and ordinal-encoded by :meth:`_transform`.
         """
         b = len(z)
+        # Every row starts at the root of every tree: a (rows x trees) matrix of node ids.
         node = np.broadcast_to(self.roots, (b, len(self.roots))).copy()
         rows = np.arange(b)[:, None]
+        # One level per step for all rows and trees; leaves self-loop, so extra steps do nothing.
         for _ in range(self.depth):
+            # The feature value each (row, tree) pair tests at its current node.
             v = z[rows, self.feat[node]]
+            # Numeric split; NaN compares False here and is corrected below.
             go_left = v <= self.thr[node]
             if self.has_cat:
+                # Categorical nodes skip the threshold and use their precomputed table instead.
                 cid = self.cat_id[node]
                 cat = cid >= 0
                 if cat.any():
                     vc = v[cat]
+                    # Codes outside 0..255, and NaN, go to the reserved last column (missing slot).
                     code = np.where((vc >= 0) & (vc < _N_CAT_CODES), vc, _N_CAT_CODES)
                     code = np.nan_to_num(code, nan=_N_CAT_CODES).astype(np.int64)
                     go_left[cat] = self.cat_table[cid[cat], code]
+            # Missing values follow the direction learned for each node during training.
             nan = np.isnan(v)
             if nan.any():
                 go_left = np.where(nan, self.miss_left[node], go_left)
+            # Advance every (row, tree) pair to its chosen child in one vectorised step.
             node = np.where(go_left, self.left[node], self.right[node])
+        # Sum the reached leaves over trees and add the initial score: the raw logit, as sklearn.
         return self.baseline + self.value[node].sum(axis=1)
 
     def raw(self, X: np.ndarray) -> np.ndarray:
         """Raw (logit) scores, identical to the estimator's ``decision_function``."""
         z = self._transform(X)
+        # Chunk large batches so the (rows x trees) node matrix stays bounded in size.
         if len(z) <= _CHUNK:
             return self._raw_chunk(z)
         return np.concatenate(

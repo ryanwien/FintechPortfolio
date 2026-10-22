@@ -31,6 +31,8 @@ def validate_key(idempotency: IdempotencyKey) -> None:
 
 def fingerprint(op: str, params: Mapping[str, Any]) -> str:
     """SHA-256 of the canonical JSON of (operation, params)."""
+    # Sorted keys and compact separators make the same request serialize to the same bytes, so the
+    # hash is stable.
     blob = json.dumps({"op": op, "params": params}, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(blob.encode()).hexdigest()
 
@@ -49,8 +51,11 @@ def stored_response(
     ).fetchone()
     if row is None:
         return None
+    # Same key, different request. Refuse rather than replay a response that answers another
+    # question.
     if row["fingerprint"] != fp:
         raise IdempotencyConflictError("Idempotency-Key was already used with a different request")
+    # Mark the hit so the API can set the Idempotent-Replayed header.
     idempotency.replayed = True
     return json.loads(row["response"])
 

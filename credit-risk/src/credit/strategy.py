@@ -37,6 +37,8 @@ class UnitEconomics:
     @property
     def breakeven_pd(self) -> Decimal:
         """PD at which a loan's expected profit is zero."""
+        # Break-even solves (1 - p) * margin = p * EAD * LGD for p, giving
+        # margin / (margin + EAD * LGD).
         loss = self.lgd * self.ead_fraction
         return self.lifetime_margin / (self.lifetime_margin + loss)
 
@@ -63,17 +65,23 @@ class CutoffRow(TypedDict):
 
 def _cents(x: Decimal) -> int:
     """Round a Decimal amount to whole cents with half-to-even rounding, as an int."""
+    # Half-even (banker's) rounding has no systematic bias, so rounding many loans
+    # does not push the totals up.
     return int(x.quantize(CENT, rounding=ROUND_HALF_EVEN))
 
 
 def _decimal_pd(pd_bad: float) -> Decimal:
     """Model PD as an exact Decimal, rounded so float noise cannot change a cent."""
+    # repr gives the shortest decimal that round-trips the float, so the Decimal is the
+    # intended PD rather than binary float noise.
     return Decimal(repr(round(float(pd_bad), _PD_DECIMALS)))
 
 
 def realized_profit_cents(loan_cents: int, defaulted: bool, econ: UnitEconomics) -> int:
     """Realised profit (negative for a loss) on one loan given its observed outcome."""
     principal = Decimal(int(loan_cents))
+    # Good loans earn the lifetime margin; defaults lose EAD x LGD. Each side is
+    # rounded half-even to whole cents.
     if defaulted:
         return -_cents(principal * econ.ead_fraction * econ.lgd)
     return _cents(principal * econ.lifetime_margin)
@@ -83,6 +91,7 @@ def expected_profit_cents(loan_cents: int, pd_bad: float, econ: UnitEconomics) -
     """Expected profit on one loan at model PD ``pd_bad``."""
     principal = Decimal(int(loan_cents))
     p = _decimal_pd(pd_bad)
+    # Probability-weighted profit, exact in Decimal; cents rounding happens once, at the end.
     gain = (1 - p) * principal * econ.lifetime_margin
     loss = p * principal * econ.ead_fraction * econ.lgd
     return _cents(gain - loss)
@@ -103,6 +112,8 @@ def cutoff_table(
     econ: UnitEconomics,
 ) -> list[CutoffRow]:
     """One row per cutoff: approve when score >= cutoff."""
+    # Per-loan economics are computed once here. Each cutoff below only masks and sums
+    # these arrays, since Decimal arithmetic is slow to repeat per cutoff.
     scores = np.asarray(scores, dtype=float)
     y = np.asarray(y_bad, dtype=int)
     loans = np.asarray(loan_cents, dtype=np.int64)
@@ -118,9 +129,11 @@ def cutoff_table(
         [realized_profit_cents(int(c), bool(b), econ) for c, b in zip(loans, y, strict=True)],
         dtype=np.int64,
     )
+    # Realised loss is the loss-side view of realised profit, counted on defaults only.
     real_loss = np.where(y == 1, -real_profit, 0)
     rows: list[CutoffRow] = []
     n = len(scores)
+    # Approve when score >= cut, the same rule the decision uses everywhere else.
     for cut in cutoffs:
         a = scores >= cut
         k = int(a.sum())

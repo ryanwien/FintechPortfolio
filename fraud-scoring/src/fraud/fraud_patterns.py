@@ -67,6 +67,7 @@ CLONED_CARD_MCCS: Final = [
 def label_delay(rng: np.random.Generator, fraud_type: str) -> int:
     """Seconds between a fraud transaction and its chargeback / report."""
     median_days = LABEL_DELAY_MEDIAN_DAYS.get(fraud_type, LABEL_DELAY_DEFAULT_DAYS)
+    # Lognormal delay: most reports land near the median, with a long tail of late ones.
     d = rng.lognormal(np.log(median_days), LABEL_DELAY_SIGMA) * DAY
     return int(min(max(d, LABEL_DELAY_MIN), LABEL_DELAY_MAX))
 
@@ -79,8 +80,10 @@ def flip_friendly_fraud(
     ``legit`` must be the DataFrame view of ``rows`` (same row order). Returns the boolean
     mask of flipped rows.
     """
+    # Only card-not-present purchases above a minimum amount can be disputed as friendly fraud.
     eligible = (~legit["card_present"]) & (legit["amount_cents"] >= FRIENDLY_FRAUD_MIN_CENTS)
     flip = (eligible & (rng.random(len(legit)) < cfg.friendly_fraud_p)).to_numpy()
+    # Rows are stored column-wise, so flip the label columns by index, not by rebuilding rows.
     for i in np.flatnonzero(flip):
         rows.cols["is_fraud"][i] = True
         rows.cols["fraud_type"][i] = "friendly_fraud"
@@ -111,7 +114,9 @@ class _Injector:
 
     def victim(self, t: int) -> int:
         """A customer active for at least a week, weighted by spend rate."""
+        # Victims need an account old enough to have history, which is what fraudsters target.
         active = self.w.cust_start <= max(t - VICTIM_MIN_TENURE, 0)
+        # Weight by spend rate: busier accounts offer more cover and are hit more often.
         p = np.where(active, self.w.cust_rate, 0.0)
         return int(self.rng.choice(len(p), p=p / p.sum()))
 
@@ -153,8 +158,10 @@ class _Injector:
         fraud_type: str,
     ) -> None:
         """Record one fraud transaction; anything past the end of the stream is dropped."""
+        # The stream has a fixed end; episodes that would run past it are dropped, not cut short.
         if t >= self.total_s:
             return
+        # label_ts is the report time: chargebacks land days later, so they cannot inform scoring.
         self.rows.add(
             ts=int(t),
             customer_id=int(c),
@@ -176,8 +183,10 @@ def _card_testing(inj: _Injector, day0: int) -> None:
     rng = inj.rng
     t = day0 + int(rng.integers(0, DAY))
     c = inj.victim(t)
+    # One attacker session: the same place and device for the whole burst.
     lat, lon = inj.near_home_or_away(c, p_home=0.5)
     dev = inj.ring_or_new_device(p_ring=0.4)
+    # Probes: tiny charges 30 seconds to 20 minutes apart, testing whether the card is live.
     for _k in range(int(rng.integers(2, 8))):
         m = int(rng.choice(inj.weak_digital) if rng.random() < 0.5 else rng.choice(inj.digital))
         inj.emit(t, c, m, int(rng.integers(50, 500)), lat, lon, dev, False, "card_testing")
@@ -205,13 +214,16 @@ def _account_takeover(inj: _Injector, day0: int, shifted: bool) -> None:
         dev = inj.devices.new()
         mults, mccs = (1.0, 2.5), ATO_SHIFTED_MCCS
     else:
+        # Before the shift the attacker is often away, on a shared ring device or a new one.
         lat, lon = inj.near_home_or_away(c, p_home=0.4)
         dev = inj.ring_or_new_device(p_ring=0.35)
         mults, mccs = (2.5, 10.0), ATO_MCCS
+    # One to four purchases in a session, spaced 5 minutes to 3 hours apart.
     for _k in range(int(rng.integers(1, 5))):
         mcc = int(rng.choice(mccs))
         pool = inj.w.merch_online_by_mcc.get(MCC_INDEX[mcc], inj.online_retail)
         m = int(rng.choice(pool))
+        # Basket size follows the victim's spend level; the multiplier range shifts with the tactic.
         mean = MCCS[mcc][1] * inj.w.cust_scale[c] * rng.uniform(*mults)
         inj.emit(t, c, m, amount_cents(rng, mean, 0.4), lat, lon, dev, False, "ato")
         t += int(rng.integers(5 * 60, 3 * HOUR))
@@ -223,6 +235,7 @@ def _high_value(inj: _Injector, day0: int) -> None:
     t = day0 + int(rng.integers(8 * HOUR, 22 * HOUR))
     c = inj.victim(t)
     home = int(inj.w.cust_loc[c])
+    # High-value fraud happens near home half the time and away the other half.
     loc = home if rng.random() < 0.5 else away_location(rng, home)
     for _k in range(int(rng.integers(1, 3))):
         mcc = int(rng.choice(HIGH_VALUE_MCCS))
@@ -236,16 +249,20 @@ def _high_value(inj: _Injector, day0: int) -> None:
 def _merchant_compromise(cfg: SimConfig, inj: _Injector, legit: pd.DataFrame) -> None:
     """Skimmed at a breached merchant, cloned card used later at an away location."""
     rng = inj.rng
+    # Skimming happens at physical merchants, so candidate victims are card-present shoppers.
     phys = legit[legit["card_present"]]
     counts = phys["merchant_id"].value_counts()
+    # Breaches hit busy merchants, where skimming has many victims.
     popular = counts.index.to_numpy()[:POPULAR_MERCHANTS]
     n_breach = min(cfg.compromised_merchants_per_period, len(popular))
     if n_breach == 0:
         return
+    # Each period has its own breaches; cloned cards are used weeks later, so labels lag.
     for period in range(cfg.n_periods):
         p0 = period * cfg.period_seconds
         breached = rng.choice(popular, size=n_breach, replace=False)
         for m_b in breached:
+            # The breach window is 10 days, starting at a random point in the period.
             w0 = p0 + int(rng.integers(0, 15 * DAY))
             hits = phys[
                 (phys["merchant_id"] == m_b) & (phys["ts"] >= w0) & (phys["ts"] < w0 + 10 * DAY)
@@ -253,10 +270,14 @@ def _merchant_compromise(cfg: SimConfig, inj: _Injector, legit: pd.DataFrame) ->
             for t_skim, c in zip(
                 hits["ts"].to_numpy(), hits["customer_id"].to_numpy(), strict=True
             ):
+                # Only 45% of shoppers at a breached merchant are actually skimmed.
                 if rng.random() > 0.45:
                     continue
+                # Cloned cards are used 5 to 30 days after the skim, not straight away.
                 t = int(t_skim) + int(rng.integers(5 * DAY, 30 * DAY))
+                # Clones are used away from home, which is the signal the geographic features catch.
                 loc = away_location(rng, int(inj.w.cust_loc[c]))
+                # A few purchases on the clone, spaced 10 minutes to 3 hours apart.
                 for _k in range(int(rng.integers(2, 6))):
                     mcc = int(rng.choice(CLONED_CARD_MCCS))
                     m = inj.physical(mcc, loc)
@@ -279,15 +300,19 @@ def inject_fraud(
 
     ``legit`` (genuine transactions only) is where skimming victims are found.
     """
+    # One shared injector, so every pattern draws from the same RNG in a fixed order.
     inj = _Injector(cfg, w, rng, rows, devices)
+    # Day by day, with patterns in a fixed order, per the module's draw-order invariant.
     for day in range(cfg.total_days):
         day0 = day * DAY
         shifted = day0 >= cfg.shift_start_ts
         for _ in range(rng.poisson(cfg.card_testing_per_day)):
             _card_testing(inj, day0)
+        # The shifted period also raises the takeover rate.
         ato_rate = cfg.ato_per_day * (ATO_SHIFT_RATE_MULT if shifted else 1.0)
         for _ in range(rng.poisson(ato_rate)):
             _account_takeover(inj, day0, shifted)
         for _ in range(rng.poisson(cfg.high_value_per_day)):
             _high_value(inj, day0)
+    # Runs last: it needs the finished legit table and works period by period.
     _merchant_compromise(cfg, inj, legit)

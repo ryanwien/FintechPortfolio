@@ -38,6 +38,7 @@ _PERIOD_END_TS: Final = ts_at(PERIOD_DAYS, 0)
 
 def lognormal_cents(rng: random.Random, median_cents: float, sigma: float) -> int:
     """Lognormal amount in cents with the given median (floored at one dollar)."""
+    # Exponentiating a Gaussian gives a positive, right-skewed amount around the median.
     return max(MIN_AMOUNT_CENTS, int(median_cents * math.exp(rng.gauss(0.0, sigma))))
 
 
@@ -45,6 +46,7 @@ def work_ts(
     rng: random.Random, day: int, lo: int = WORK_DAY_START_HOUR, hi: int = WORK_DAY_END_HOUR
 ) -> int:
     """Random timestamp on ``day`` between hours ``lo`` (inclusive) and ``hi`` (exclusive)."""
+    # The hour range is half-open (hi excluded), which is why the upper bound is hi - 1.
     return ts_at(day, rng.randint(lo, hi - 1), rng.randrange(MINUTES_PER_HOUR))
 
 
@@ -80,21 +82,27 @@ class WorldBuilder:
     ) -> str:
         """Create a customer with one primary account; returns the customer id."""
         rng = self.rng
+        # Sequential id from the 'cust' counter, zero-padded so ids sort cleanly.
         cid = f"C{self._next('cust'):05d}"
         if kind == "individual":
+            # Individuals get a person name; businesses get a generated company name with a segment
+            # suffix.
             name = f"{rng.choice(FIRST_NAMES)} {rng.choice(LAST_NAMES)}"
         else:
             name = f"{rng.choice(BIZ_WORDS)} {BIZ_SUFFIX.get(segment, DEFAULT_BIZ_SUFFIX)} LLC"
         self.customers[cid] = Customer(
             cid, name, kind, segment, kyc, expected, onboarded_day, rng.choice(BRANCHES)
         )
+        # Each customer gets exactly one primary account; plain activity posts there.
         aid = f"A{self._next('acct'):06d}"
+        # Business customers use a business product so downstream profiles can tell them apart.
         product = "checking" if kind == "individual" else "business_checking"
         self.accounts[aid] = Account(aid, cid, product)
         self.primary[cid] = aid
         return cid
 
     def set_expected(self, cid: str, cents: float) -> None:
+        # Store whole cents only: the declared profile is money and must not carry fractional cents.
         """Record the declared expected monthly inflow (truncated to whole cents)."""
         self.customers[cid] = replace(self.customers[cid], expected_monthly_cents=int(cents))
 
@@ -113,9 +121,12 @@ class WorldBuilder:
         branch: str | None = None,
         label: str | None = None,
     ) -> Txn | None:
+        # Out-of-period and zero-value postings are silently dropped, so generators need no bounds
+        # checks.
         """Post a transaction; returns ``None`` if it falls outside the period or is empty."""
         if ts >= _PERIOD_END_TS or amount <= 0:
             return None
+        # Ids are drawn after the period check, so dropped postings never consume a txn id.
         t = Txn(
             f"T{self._next('txn'):07d}", ts, channel, src, dst, int(amount), country, branch, label
         )
@@ -124,12 +135,14 @@ class WorldBuilder:
 
     def instance(self, typology: str, members: list[str], variant: str) -> str:
         """Register a ground-truth typology instance; returns its id (e.g. ``STR-03``)."""
+        # Instance ids use the first three letters of the typology plus a per-typology counter.
         iid = f"{typology[:3].upper()}-{self._next('inst_' + typology):02d}"
         self.instances.append(TypologyInstance(iid, typology, tuple(members), variant))
         return iid
 
     def build(self) -> World:
         """Freeze the accumulated entities into a ``World``, with transactions in time order."""
+        # Sort by time, then id, so every consumer sees transactions in chronological order.
         txns = sorted(self.txns, key=lambda t: (t.ts, t.txn_id))
         return World(
             customers=dict(self.customers),
@@ -166,6 +179,8 @@ class BusinessBooks:
         self, ts: int, channel: str, src: str, amount: int, branch: str | None = None
     ) -> None:
         """Inbound payment to the business; counted toward its declared profile."""
+        # Count the credit only if it actually posted; txn returns None when it falls outside the
+        # period.
         if self.builder.txn(ts, channel, src, self.account, amount, branch=branch):
             self.credited_cents += amount
 
@@ -179,10 +194,15 @@ class BusinessBooks:
     ) -> None:
         """Recurring ACH wages (dollars per run in ``[wage_lo, wage_hi]``) to fixed payees."""
         b, rng = self.builder, self.rng
+        # Payees and base wages are drawn once, so the same people are paid the same base amount
+        # each run.
         payees = [b.ext("PAYEE") for _ in range(n_employees)]
         wages = [rng.randint(wage_lo, wage_hi) * 100 for _ in payees]
         for day in self.days:
+            # Pay on days where day % every equals the offset: a fixed cadence.
             if day % every == offset:
+                # Each run jitters about 5% around the base wage, so the transfers look real rather
+                # than identical.
                 for payee, wage in zip(payees, wages, strict=True):
                     b.txn(
                         ts_at(day, 6, rng.randrange(30)),
@@ -196,5 +216,6 @@ class BusinessBooks:
         """Monthly ACH rent to a commercial landlord."""
         landlord = self.builder.ext("CRE")
         for day in self.days:
+            # Rent posts once a month on a fixed day; the day check uses a 30-day month.
             if day % self.MONTH_DAYS == self.RENT_DAY_OF_MONTH:
                 self.builder.txn(ts_at(day, 9), "ach", self.account, landlord, amount)

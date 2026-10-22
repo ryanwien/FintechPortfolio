@@ -76,6 +76,7 @@ def render_report(m: dict[str, Any]) -> str:
         "unless noted. Latency is per `create_payment` call through the service layer"
         " (no HTTP).\n"
     )
+    # SQLite has one writer, so the prose describes a flat curve here rather than a scaling one.
     transfers = (
         "## Transfers by concurrency\n\n"
         f"{md_table(CONCURRENCY_HEADERS, _concurrency_rows(m))}\n\n"
@@ -109,6 +110,7 @@ def render_report(m: dict[str, Any]) -> str:
         f"classified breaks (unexplained: {s['unexplained_difference']}). Matching took\n"
         f"{rc['reconcile_ms']} ms.\n\n"
         f"{md_table(RECON_HEADERS, _recon_rows(rc))}\n\n"
+        # Hand-written prose: keep these stress figures in step with STRESS_RATES in config.py.
         "Stress rates (4x breaks; 35% of bank memos stripped of the reference,"
         " which settle 0-3 days\n"
         "late, so some fall outside the 1-day matching tolerance with no reference"
@@ -125,6 +127,8 @@ def site_summary(m: dict[str, Any]) -> dict[str, Any]:
     """The portfolio-site card for this project."""
     by_conc = m["transfers"]["by_concurrency"]
     seq = by_conc[0]
+    # The headline throughput is the best level measured, which need not be the highest thread
+    # count.
     best = max(by_conc, key=lambda r: r["transfers_per_s"])
     rc = m["reconciliation"]["standard"]
     scoring = rc["scoring"]

@@ -71,10 +71,16 @@ def generate_applicants(
     n: int = N_APPLICANTS, seed: int = SEED, months: int = N_MONTHS
 ) -> pd.DataFrame:
     """Return ``n`` synthetic applications with features, protected group and default flag."""
+    # One generator, drawn in a fixed order. Adding or reordering a draw changes every
+    # dataset produced from the seed, so the order below is part of the contract.
     rng = np.random.default_rng(seed)
+    # Sorted month: rows are in application-time order, so OOT is a contiguous tail.
     month = np.sort(rng.integers(0, months, n))
+    # Same boundary split_dev_oot uses, so the generated drift and the split agree.
     oot = month >= DEV_MONTHS
 
+    # The protected group acts through the region mix (the proxy channel) and through
+    # income below; it has no direct term in the default process.
     prot = rng.random(n) < _PROTECTED_SHARE
     region_idx = np.where(
         prot,
@@ -89,27 +95,37 @@ def generate_applicants(
         - 0.05 * (region_idx - 2.5) / 2.5
         + rng.normal(0, 0.48, n)
     )
+    # Round to the nearest $100, then clip to the plausible income range.
     income = np.clip(np.round(np.exp(log_inc), -2), *_INCOME_BOUNDS).astype(np.int64)
 
     age_factor = rng.gamma(4.0, 1.0, n)  # shared driver of history and tenure
     credit_history_months = np.clip(np.round(age_factor * 32 + rng.normal(0, 18, n)), 3, 480)
     employment_years = np.clip(np.round(age_factor * 1.6 + rng.normal(0, 1.5, n)), 0, 10)
 
+    # Debt-to-income is lower for higher-income applicants, all else equal.
     dti = np.clip(rng.normal(19, 8, n) - 3 * (log_inc - np.log(_REFERENCE_INCOME)), 0, 55).round(1)
+    # Utilization: a Beta base, nudged up by debt-to-income.
     util_base = rng.beta(2.0, 3.0, n) * 1.1 + 0.004 * (dti - 19)
     # Out-of-time drift: utilization and inquiries creep up (late-cycle consumer).
     util = np.clip(util_base + 0.04 * oot, 0, 1.2).round(3)
+    # Inquiries and delinquencies are Poisson, with rates rising in utilization, so the
+    # bureau signals move together.
     inquiries = rng.poisson(np.where(oot, 1.25, 1.0) * np.exp(0.6 * (util - 0.45)))
     delinq = rng.poisson(0.22 * np.exp(1.2 * (util - 0.45) + 0.02 * (dti - 19)))
 
     purpose_idx = rng.choice(len(PURPOSES), n, p=_PURPOSE_P)
+    # Small-business loans are more often long-term, and long terms raise the amount.
     long_term_p = 0.28 + 0.15 * (purpose_idx == _SMALL_BUSINESS)
     term = np.where(rng.random(n) < long_term_p, LONG_TERM, SHORT_TERM)
     loan = income * rng.uniform(0.06, 0.32, n) * np.where(term == LONG_TERM, 1.3, 1.0)
+    # Round to whole $500 and clip to the bounds, after the 1.3x long-term uplift above.
     loan_amount = np.clip(np.round(loan / _LOAN_ROUNDING) * _LOAN_ROUNDING, *LOAN_BOUNDS)
     loan_amount = loan_amount.astype(np.int64)
 
     frailty = rng.normal(0, 0.55, n)  # unobserved heterogeneity caps achievable AUC
+    # Latent default process: part of the simulated world, not model settings. Income,
+    # DTI, utilization, delinquency, inquiries, history, employment, loan-to-income,
+    # term, purpose, region, the OOT shift and frailty all enter the logit.
     logit = (
         -2.70
         - 0.55 * (log_inc - np.log(_REFERENCE_INCOME))
@@ -126,6 +142,7 @@ def generate_applicants(
         + 0.12 * oot  # macro deterioration in the OOT window
         + frailty
     )
+    # Bernoulli draw from the latent PD. Only this flag is observed, never the PD itself.
     pd_true = 1.0 / (1.0 + np.exp(-logit))
     bad = (rng.random(n) < pd_true).astype(np.int8)
 

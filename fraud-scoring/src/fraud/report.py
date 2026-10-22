@@ -32,6 +32,7 @@ def _psi_rows(m: dict[str, Any], a: str, b: str) -> list[str]:
 
 def render_report(m: dict[str, Any]) -> str:
     """Render the full markdown report from a metrics dict produced by ``fraud.run``."""
+    # Each section reads its own slice of metrics.json; only formatting happens here.
     d = m["data"]
     sp = d["split"]
     mr = m["models"]
@@ -41,6 +42,7 @@ def render_report(m: dict[str, Any]) -> str:
     lat = m["latency"]
     dr = m["drift"]
     c = m["config"]["costs"]
+    # One flat list of lines, one block per section, joined at the end.
     lines = [
         "# Real-time card fraud scoring: run report",
         "",
@@ -67,6 +69,7 @@ def render_report(m: dict[str, Any]) -> str:
         "Recall @ 2% alerts | Brier |",
         "|---|---|---|---|---|---|---|",
     ]
+    # Brier only exists for probabilistic models, so the rules row shows n/a.
     for name in MODELS:
         t = mr[name]["test"]
         r = t["recall_at_0.5pct_alerts"]
@@ -77,16 +80,19 @@ def render_report(m: dict[str, Any]) -> str:
         )
     lines += [
         "",
+        # Base rate matters: a 0.5% alert queue cannot catch more fraud than exists.
         f"Fraud is {mr['hgb']['test']['n_fraud'] / mr['hgb']['test']['n']:.2%} of test "
         f"traffic, so alerting on 0.5% can catch at most "
         f"{m['recall_ceiling_0.5pct']['test']:.1%} of it. Base-rate Brier (predict the "
         f"fraud rate for everyone): {mr['hgb']['test']['brier_base_rate']:.5f}.",
         "",
+        # Per-type recall shows where each model's blind spots are.
         "Recall at the 0.5% alert rate by fraud type:",
         "",
         "| Model | Split | " + " | ".join(FRAUD_TYPES) + " |",
         "|---|---|" + "---|" * len(FRAUD_TYPES),
     ]
+    # Recall by fraud type for each model, on the test and shifted months.
     for name in MODELS:
         for split in ("test", "shifted"):
             row = m["recall_by_fraud_type_0.5pct"][name][split]
@@ -97,9 +103,11 @@ def render_report(m: dict[str, Any]) -> str:
             )
     lines += [
         "",
+        # friendly_fraud looks like normal spend, so zero recall there is the honest result.
         "friendly_fraud (a genuine purchase later disputed) is behaviourally identical to "
         "normal spend; 0% recall is the expected, honest result.",
         "",
+        # Reliability table: mean prediction and observed rate per score bin, test months.
         "### Calibration (HGB, test)",
         "",
         "| Score bin | n | mean predicted | observed fraud rate |",
@@ -112,12 +120,15 @@ def render_report(m: dict[str, Any]) -> str:
         )
     lines += [
         "",
+        # Calibration gap: training saw immature labels, evaluation sees matured ones.
         "Predicted probabilities sit below observed rates in the middle bins: the model was "
         "trained on labels as known at the cut-off (late chargebacks counted as good) and is "
         "evaluated on matured labels.",
         "",
+        # Policy table: bands are chosen on validation and applied unchanged to test months.
         "## Cost-sensitive decisioning",
         "",
+        # Cost assumptions restated from the config, so the policy numbers can be checked.
         f"Costs: missed fraud = full amount; review = ${c['review_cost_cents'] / 100:.2f} "
         f"analyst time, stops {c['review_catch_bps'] / 100:.0f}% of the fraud it sees, "
         f"${c['review_friction_cents'] / 100:.2f} friction for a good customer; false decline "
@@ -130,6 +141,7 @@ def render_report(m: dict[str, Any]) -> str:
         "False declines | Fraud $ stopped | Expected loss (test) |",
         "|---|---|---|---|---|---|---|---|",
     ]
+    # One policy row per model: bands from validation, outcomes on the test months.
     for name in MODELS:
         b = dec[name]["bands"]
         t = dec[name]["test"]
@@ -141,13 +153,16 @@ def render_report(m: dict[str, Any]) -> str:
             f"{usd(t['expected_loss_cents'])} |"
         )
     lines += [
+        # Approve-all is the no-screening floor: every fraud dollar is charged back.
         f"| approve all | - | - | 0 | 0 | 0 | 0% | {usd(sv['approve_all_loss_cents'])} |",
         "",
+        # Headline sentence; every figure comes from the savings block of the metrics.
         f"**HGB cuts expected loss by {usd(sv['hgb_vs_rules_cents'])} vs the rules baseline "
         f"over {sv['test_months']} test months ({sv['hgb_vs_rules_pct']:.1%} lower, "
         f"{usd(sv['hgb_vs_rules_cents_per_month'])}/month)**, and by "
         f"{usd(sv['hgb_vs_logreg_cents'])} vs logistic regression.",
         "",
+        # Where the remaining test-period loss comes from, by cause.
         "HGB loss breakdown (test): "
         + ", ".join(f"{k} {usd(v)}" for k, v in dec["hgb"]["test"]["loss_breakdown_cents"].items())
         + ".",
@@ -158,12 +173,14 @@ def render_report(m: dict[str, Any]) -> str:
         f"{usd(dec['hgb']['shifted']['fraud_cents_approved'])} of "
         f"{usd(dec['hgb']['shifted']['fraud_cents'])}.",
         "",
+        # PSI compares each later month with the training months, feature by feature.
         "## Drift monitoring (PSI vs training months)",
         "",
         f"Thresholds: warn >= {dr['thresholds']['warn']}, alert >= {dr['thresholds']['alert']}."
         f" Model score PSI: test {dr['score_psi_train_vs_test']:.3f}, shifted month "
         f"{dr['score_psi_train_vs_shifted']:.3f} ({dr['score_status_shifted']}).",
         "",
+        # Traffic PSI can be monitored as it happens; fraud-only PSI waits for chargebacks.
         "All traffic (available in real time):",
         "",
         "| Feature | PSI test | PSI shifted | Status (shifted) |",
@@ -186,9 +203,11 @@ def render_report(m: dict[str, Any]) -> str:
         f"{m['recall_by_fraud_type_0.5pct']['hgb']['test']['ato']:.1%} -> "
         f"{m['recall_by_fraud_type_0.5pct']['hgb']['shifted']['ato']:.1%}.",
         "",
+        # Skew and latency are measured on the same scorer that the API loads.
         "## Serving",
         "",
         f"- Model version `{m['model_version']}`.",
+        # Skew is the largest absolute gap between online and batch values; 0 means identical.
         f"- Train/serve skew: all {sk['rows_compared_in_process']:,} transactions replayed "
         f"through the serving `Scorer` give max |online - batch| feature difference "
         f"{sk['max_abs_feature_diff_in_process']:g}. Online scores (flat-array tree walk) vs "
@@ -201,6 +220,7 @@ def render_report(m: dict[str, Any]) -> str:
         "| Path | n | p50 ms | p95 ms | p99 ms |",
         "|---|---|---|---|---|",
     ]
+    # Three latency paths: production scorer, forced reason codes, and the full HTTP stack.
     for label, key in (
         (
             "In-process `Scorer.score`, reason codes on review/decline (production setting)",

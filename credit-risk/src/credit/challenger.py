@@ -57,9 +57,11 @@ class Challenger:
         self.numeric = list(numeric)
         self.categorical = list(categorical)
         cst = monotonic_constraints(self.numeric)
+        # Categorical features carry no monotone constraint.
         cst.update(dict.fromkeys(self.categorical, 0))
         self.model = HistGradientBoostingClassifier(
             **_GBM_PARAMS,
+            # Reads the pandas Categorical dtype from _frame, so codes follow the fixed vocabulary.
             categorical_features="from_dtype",
             monotonic_cst=cst,
             random_state=seed,
@@ -76,6 +78,7 @@ class Challenger:
         Numeric columns are cast to float. Categorical columns become pandas Categoricals
         over the fixed generator vocabulary, so category codes do not depend on which
         levels a given frame happens to contain."""
+        # Copy before writing the categorical columns, so the caller's frame is not modified.
         X = df[self.numeric].astype(float).copy()
         for f in self.categorical:
             X[f] = pd.Categorical(df[f].astype(str), categories=_CATEGORIES[f])

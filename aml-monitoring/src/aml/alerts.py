@@ -59,6 +59,7 @@ def make_alert(
         cid,
         txns[0].ts,
         txns[-1].ts,
+        # Clamp before rounding so the stored score always sits in [0, MAX_ALERT_SCORE].
         round(min(MAX_ALERT_SCORE, score), SCORE_DECIMALS),
         tuple(t.txn_id for t in txns),
         details,
@@ -71,19 +72,25 @@ def episodes(hits: list[Hit]) -> list[tuple[list[Txn], list[Details]]]:
 
     Returns (deduped txns in time order, infos of the merged hits) per episode.
     """
+    # Sort by start, then end, so overlapping windows become adjacent in one pass.
     spans = sorted(
         ((min(t.ts for t in h), max(t.ts for t in h), h, info) for h, info in hits),
         key=lambda s: (s[0], s[1]),
     )
+    # Each episode keeps txns keyed by id, so a txn shared by overlapping hits is counted once.
     merged: list[tuple[int, int, dict[str, Txn], list[Details]]] = []
     for lo, hi, h, info in spans:
+        # Overlap test: a hit that starts on or before the open episode's end extends it.
         if merged and lo <= merged[-1][1]:
             m_lo, m_hi, m_txns, m_infos = merged[-1]
             m_txns.update({t.txn_id: t for t in h})
             m_infos.append(info)
+            # Keep the later of the two ends so a long earlier hit is never shortened.
             merged[-1] = (m_lo, max(m_hi, hi), m_txns, m_infos)
         else:
+            # No overlap with the open episode, so this hit starts a new one.
             merged.append((lo, hi, {t.txn_id: t for t in h}, [info]))
+    # Time-order each episode's txns so the output is stable and readable.
     return [
         (sorted(txns.values(), key=lambda t: (t.ts, t.txn_id)), infos)
         for _, _, txns, infos in merged
@@ -95,29 +102,40 @@ def dedupe_alerts(alerts: list[Alert], gap_days: int) -> list[Alert]:
 
     The merged alert keeps the stronger alert's score and details (plus ``merged_hits``).
     """
+    # Group by (rule, customer): merging across rules or customers would be wrong.
     groups: dict[tuple[str, str], list[Alert]] = {}
     for a in alerts:
         groups.setdefault((a.rule_id, a.customer_id), []).append(a)
     merged: list[Alert] = []
     gap = gap_days * DAY
+    # Sorted group keys make the output order deterministic.
     for key in sorted(groups):
+        # Walk each group in time order so every alert is compared with the running merged alert.
         items = sorted(groups[key], key=lambda a: (a.ts_start, a.ts_end))
         cur = items[0]
         n = 1
         for a in items[1:]:
+            # Merge when the alert starts no later than the current end plus the gap window.
             if a.ts_start <= cur.ts_end + gap:
+                # Keep the stronger alert's score and details; the merged span always widens to
+                # cover both.
                 top = a if a.score > cur.score else cur
                 cur = replace(
                     top,
                     ts_start=min(cur.ts_start, a.ts_start),
                     ts_end=max(cur.ts_end, a.ts_end),
                     txn_ids=tuple(sorted(set(cur.txn_ids) | set(a.txn_ids))),
+                    # Count how many raw alerts this merged alert now covers, reported as
+                    # merged_hits.
                     details=dict(top.details, merged_hits=n + 1),
                 )
                 n += 1
             else:
+                # Gap too large: finish the current alert and start a new one from this item.
                 merged.append(cur)
                 cur, n = a, 1
         merged.append(cur)
+    # Sort by (start, customer, rule) so alert_id numbering is stable for a given input.
     merged.sort(key=lambda a: (a.ts_start, a.customer_id, a.rule_id))
+    # IDs are stamped after sorting, which is what makes them reproducible across runs.
     return [replace(a, alert_id=f"ALR-{i:05d}") for i, a in enumerate(merged, start=1)]
