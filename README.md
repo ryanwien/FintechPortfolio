@@ -6,6 +6,23 @@ run the project and the report regenerates.
 
 **Live dashboard:** [ryanwien.github.io/FintechPortfolio](https://ryanwien.github.io/FintechPortfolio/)
 
+## Why this exists
+
+Fintech software has an unusual property: being almost right is the same as being wrong.
+A ledger that loses a cent per million transfers, a backtest that peeks one tick into the
+future, or a credit model that quietly fails a fairness test is not 99.99% done — it is
+broken, and in this industry the breakage shows up as money, regulators, or both.
+
+I built this portfolio because a resume can claim to understand that and a demo can hide
+not understanding it. Working systems with tests, measurements, and stated limitations
+can't. So instead of one toy app, this is one system from each of the five lanes fintech
+companies actually hire for — moving money, catching fraud, approving loans, running
+markets, and compliance — each built the way the production version would be, scaled down
+in size but not in rigor.
+
+It's also how I'd want to be evaluated: not "did the demo work," but "did the overdraft
+race get handled, and is there a test proving it."
+
 | # | System | Lane | What it proves |
 |---|---|---|---|
 | 01 | [`ledger/`](./ledger) | Payments infrastructure | Double-entry journal, idempotent payments API, authorization holds, reconciliation against a bank feed, money conserved under concurrent load |
