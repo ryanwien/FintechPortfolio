@@ -1,0 +1,26 @@
+{
+  "orders": 1000000,
+  "seed": 42,
+  "compiler": "MSVC 1944",
+  "throughput_orders_per_sec": 4321213,
+  "throughput_runs": [4235065, 4285136, 4321213],
+  "latency_ns": {
+    "p50": 200.0,
+    "p99": 600.0,
+    "p99_9": 1400.0,
+    "max": 32733100.0,
+    "mean": 268.4
+  },
+  "command_mix": {"Cancel": 379931, "FOK": 4349, "IOC": 20014, "LIMIT": 509717, "MARKET": 15408, "POST_ONLY": 40389, "Replace": 30192},
+  "events": {"Ack": 587724, "Booked": 502506, "Cancelled": 387168, "Fill": 180771, "Reject": 2298, "Replaced": 30047},
+  "events_per_command": 1.69,
+  "depth": {
+    "mean_bid_levels": 14.6,
+    "mean_ask_levels": 14.7,
+    "mean_resting_orders": 128.5,
+    "max_resting_orders": 302,
+    "final": {"bid_levels": 6, "ask_levels": 12, "resting_orders": 44, "resting_qty": 25100}
+  },
+  "replay": {"hash_match": true, "seconds": 0.229},
+  "book_hash_fnv1a": "02dfcc0117b1d90a"
+}

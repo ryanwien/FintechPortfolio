@@ -8,7 +8,7 @@
   const REPO = "https://github.com/ryanwien/FintechPortfolio";
 
   /** Three-letter ticker shown in the sidebar, table and matrix header. */
-  const SYM = { ledger: "LDG", fraud: "FRD", credit: "CRD", exchange: "XCH", aml: "AML" };
+  const SYM = { ledger: "LDG", fraud: "FRD", credit: "CRD", exchange: "XCH", aml: "AML", cpp: "CPP" };
 
   /** Short display name used where the full project title is too long. */
   const NAMES = {
@@ -17,6 +17,7 @@
     credit: "Credit risk",
     exchange: "Matching engine",
     aml: "AML monitoring",
+    cpp: "C++ engine",
   };
 
   /** One sentence per system that a non-technical recruiter can read cold.
@@ -38,10 +39,13 @@
     aml:
       "The compliance watchdog banks are required to run: it spots patterns criminals use to " +
       "launder money and keeps a tamper-proof evidence trail for regulators.",
+    cpp:
+      "The Python matching engine rebuilt in C++20: the same order book, the same rules, the " +
+      "same tests, running an order of magnitude faster on the same machine.",
   };
 
   /** One chart color per system, in data.js order. */
-  const COLORS = ["#b6ef5a", "#7cb3ff", "#f5b84a", "#ff7b86", "#c084fc"];
+  const COLORS = ["#b6ef5a", "#7cb3ff", "#f5b84a", "#ff7b86", "#c084fc", "#5eead4"];
 
   /** JD-coverage matrix: requirement -> slugs of the systems that demonstrate it. */
   const COVER = [
@@ -55,14 +59,15 @@
     ["Drift monitoring (PSI) and alerting", ["fraud", "credit"]],
     ["Model risk documentation, model card", ["credit"]],
     ["Fair lending and adverse-action reasons", ["credit"]],
-    ["Low-latency data structures and benchmarks", ["exchange"]],
+    ["Low-latency data structures and benchmarks", ["exchange", "cpp"]],
     ["Backtesting with fees and slippage", ["exchange"]],
     ["BSA/AML typologies and SAR narratives", ["aml"]],
     ["Graph analytics on transaction networks", ["aml"]],
     ["Tamper-evident audit trails", ["aml", "ledger"]],
     ["Property-based testing (Hypothesis)", ["ledger", "exchange"]],
+    ["Systems programming in modern C++", ["cpp"]],
     ["FastAPI services", ["ledger", "fraud"]],
-    ["CI on every push, three Python versions", ["ledger", "fraud", "credit", "exchange", "aml"]],
+    ["Green CI on every push", ["ledger", "fraud", "credit", "exchange", "aml", "cpp"]],
   ];
 
   window.CATALOG = { REPO, SYM, NAMES, PLAIN, COLORS, COVER };

@@ -17,7 +17,14 @@ from pathlib import Path
 from typing import Any, Final
 
 ROOT: Final = Path(__file__).resolve().parent.parent
-PROJECTS: Final = ("ledger", "fraud-scoring", "credit-risk", "matching-engine", "aml-monitoring")
+PROJECTS: Final = (
+    "ledger",
+    "fraud-scoring",
+    "credit-risk",
+    "matching-engine",
+    "matching-engine-cpp",
+    "aml-monitoring",
+)
 COMMIT_LIMIT: Final = 10
 _COLLECTED: Final = re.compile(r"(\d+) tests? collected")
 
@@ -29,7 +36,13 @@ def _run(cmd: list[str], cwd: Path) -> str:
 
 
 def count_tests(folder: Path) -> int:
-    """Test cases pytest collects, so parametrized cases count the same way CI counts them."""
+    """Test cases pytest collects, so parametrized cases count the same way CI counts them.
+
+    A project without a pyproject.toml is not a Python project; its runner writes its own
+    test count into results/site.json and this returns -1 to signal "use that".
+    """
+    if not (folder / "pyproject.toml").exists():
+        return -1
     # -o addopts= neutralizes per-project verbosity flags so the summary line is always printed.
     out = _run([sys.executable, "-m", "pytest", "--collect-only", "-q", "-o", "addopts="], folder)
     found = _COLLECTED.search(out)
@@ -39,11 +52,12 @@ def count_tests(folder: Path) -> int:
 
 
 def count_loc(folder: Path) -> int:
-    """Non-blank lines of Python under src/ and tests/."""
+    """Non-blank lines of source (Python or C++) under src/ and tests/."""
     return sum(
         sum(1 for line in path.read_text(encoding="utf-8").splitlines() if line.strip())
         for sub in ("src", "tests")
-        for path in (folder / sub).rglob("*.py")
+        for pattern in ("*.py", "*.cpp", "*.hpp", "*.h")
+        for path in (folder / sub).rglob(pattern)
     )
 
 
@@ -72,10 +86,15 @@ def load_project(name: str) -> dict[str, Any]:
         raise SystemExit(f"missing {site.relative_to(ROOT)}: run the project first")
     data = json.loads(site.read_text(encoding="utf-8"))
     report = results / "REPORT.md"
+    pytest_count = count_tests(folder)
     data |= {
         "folder": name,
-        "run": (folder / ".run").read_text(encoding="utf-8").strip(),
-        "tests": count_tests(folder),
+        # Python projects name their entry module in .run; others ship a run_cmd in site.json.
+        "run": (folder / ".run").read_text(encoding="utf-8").strip()
+        if (folder / ".run").exists()
+        else "",
+        # -1 means "not a pytest project": keep the count its own test runner wrote.
+        "tests": pytest_count if pytest_count >= 0 else int(data.get("tests", 0)),
         "loc": count_loc(folder),
         "report": report.read_text(encoding="utf-8") if report.exists() else "",
     }

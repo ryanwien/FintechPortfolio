@@ -174,7 +174,7 @@
     $("[data-src]", v).href = `${REPO}/tree/main/${p.folder}`;
     $("[data-report-link]", v).href = `${REPO}/blob/main/${p.folder}/results/REPORT.md`;
     const facts = $("[data-facts]", v);
-    [["Tests", fmtInt(p.tests)], ["Lines of Python", fmtInt(p.loc)], ["Run", `python -m ${p.run || "…"}`], ["Folder", p.folder + "/"]]
+    [["Tests", fmtInt(p.tests)], ["Lines of code", fmtInt(p.loc)], ["Run", p.run_cmd || `python -m ${p.run || "…"}`], ["Folder", p.folder + "/"]]
       .forEach(([k, val]) => { const li = el("li"); li.append(el("span", null, k), el("b", null, val)); facts.append(li); });
 
     // remaining metrics, highlights, limitations, generated run report

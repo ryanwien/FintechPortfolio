@@ -1,6 +1,6 @@
 # Fintech Portfolio
 
-Five production-style fintech systems, each built end to end, tested against the ways it
+Six production-style fintech systems, each built end to end, tested against the ways it
 can break, and measured. Every number in every README is produced by the code next to it:
 run the project and the report regenerates.
 
@@ -20,7 +20,8 @@ repository is for.
 ### Goal
 
 One system from each of the five lanes fintech companies actually hire for, each built the
-way the production version would be, scaled down in size but not in rigor. In particular:
+way the production version would be, scaled down in size but not in rigor, plus a C++20
+twin of the matching engine to show the same design at native speed. In particular:
 
 - Correctness you can check: 306 tests, property-based where it counts, run in CI on every push
 - Money handled like money: integer cents or `Decimal`, never floats, conserved under concurrency
@@ -36,6 +37,7 @@ way the production version would be, scaled down in size but not in rigor. In pa
 | 03 | [`credit-risk/`](./credit-risk) | Lending & model risk | WoE scorecard vs. monotonic GBM challenger, out-of-time validation, fair-lending tests, adverse-action reason codes, generated model card |
 | 04 | [`matching-engine/`](./matching-engine) | Trading & market infrastructure | Price-time priority limit order book, deterministic replay, property-tested invariants, event-driven backtester with fees and slippage |
 | 05 | [`aml-monitoring/`](./aml-monitoring) | Financial crime & compliance | Typology rules engine, graph analytics for mule rings and round-tripping, case management with a hash-chained audit trail and SAR narratives |
+| 06 | [`matching-engine-cpp/`](./matching-engine-cpp) | Trading & market infrastructure | The matching engine rebuilt in C++20: same order types, same priority and self-trade rules, same tests, 20x the throughput on the same machine |
 
 ## 🚀 Quick Start
 
@@ -68,7 +70,7 @@ Open `credit-risk/results/REPORT.md`. Every project works the same way: `pip ins
 <project>`, then `python -m` the module named in its `.run` file regenerates its `results/`.
 
 Prefer zero setup? The [live dashboard](https://ryanwien.github.io/FintechPortfolio/) has
-every system's results and an interactive demo of each. To run all five systems, tests and
+every system's results and an interactive demo of each. To run every system, tests and
 lint in one go, see [Contributing](#-contributing).
 
 ## 📖 Usage
@@ -86,6 +88,7 @@ always from inside the project folder. Entry points:
 | `python -m exchange.run` | Engine benchmark plus all backtests |
 | `python -m exchange.bench` | Benchmark only: `--orders` (default 300000), `--seed` |
 | `python -m aml.run` | Full monitoring pipeline: `--seed`, `--customers`, `--config`, `--out` |
+| `make check && make run` | C++ engine (in `matching-engine-cpp/`): build, test and benchmark with g++; `build.bat` for MSVC |
 
 Dashboard data and the recruiter PDF rebuild from whatever the runs produced:
 
@@ -134,7 +137,7 @@ python -m aml.run --config overrides.json --customers 8000 --seed 7
 - **Reproducible.** Deterministic seeds, synthetic data generated in code, no API keys, no
   network. One shared virtualenv, one command per project.
 
-CI lints and format-checks the whole repo with one shared `ruff.toml`, tests all five projects
+CI lints and format-checks the whole repo with one shared `ruff.toml`, tests every project
 on Python 3.12, 3.13 and 3.14, and runs each project end to end on every push. Repo-wide rules
 are in [CONVENTIONS.md](./CONVENTIONS.md).
 
@@ -147,6 +150,7 @@ are in [CONVENTIONS.md](./CONVENTIONS.md).
 ├── credit-risk/         03 · credit underwriting & model risk
 ├── matching-engine/     04 · limit order book + backtester
 ├── aml-monitoring/      05 · AML monitoring & case management
+├── matching-engine-cpp/ 06 · the matching engine in C++20, 20x faster
 ├── index.html           dashboard shell (views are <template>s, filled by JS)
 ├── assets/js/           front end, no build step: util, catalog, charts, sfx, app, demos
 ├── assets/data.js       generated: every project's results bundled for the dashboard
@@ -176,7 +180,7 @@ pre-commit install                                # optional: lint and format on
 ruff check . && ruff format --check .             # one standard, repo-wide
 ```
 
-Then in any project: `pytest` (306 tests across the five), and `python -m $(cat .run)` to
+Then in any Python project: `pytest`, and `python -m $(cat .run)` to
 regenerate its `results/` end to end. Or everything at once:
 
 ```bash
@@ -195,6 +199,6 @@ go through [SECURITY.md](./SECURITY.md), not public issues.
 
 ## Stack
 
-Python · FastAPI · scikit-learn · pandas · NumPy · SQLite · networkx · Hypothesis · pytest · ruff · GitHub Actions
+Python · C++20 · FastAPI · scikit-learn · pandas · NumPy · SQLite · networkx · Hypothesis · pytest · ruff · GitHub Actions
 
 Front end: hand-written HTML/CSS/JS, no framework, no build step.

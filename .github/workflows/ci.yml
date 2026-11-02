@@ -49,3 +49,15 @@ jobs:
       - name: End-to-end run
         if: matrix.python-version == '3.14'
         run: python -m "$(cat .run)"
+
+  cpp:
+    needs: lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: matching-engine-cpp
+    steps:
+      - uses: actions/checkout@v4
+      # g++ and make are in the ubuntu image; warnings are errors in the Makefile.
+      - run: make check
+      - run: make run

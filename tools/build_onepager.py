@@ -41,6 +41,8 @@ PLAIN: Final = {
     "per second, the core of how markets like NASDAQ work.",
     "aml": "The compliance watchdog banks are required to run: spots the patterns criminals "
     "use to launder money and keeps a tamper-proof evidence trail for regulators.",
+    "cpp": "The matching engine rebuilt in C++20: the same order book, rules and tests, "
+    "running an order of magnitude faster on the same machine.",
 }
 
 
@@ -84,7 +86,7 @@ def main() -> None:
     pdf.set_font("helvetica", "", 9.5)
     pdf.set_xy(14, 14.5)
     pdf.set_text_color(*ACCENT)
-    pdf.cell(w / 2, 5, "Fintech portfolio - five working systems, live demos included")
+    pdf.cell(w / 2, 5, "Fintech portfolio - six working systems, live demos included")
     pdf.set_font("helvetica", "", 9)
     pdf.set_text_color(230, 230, 230)
     links = [("Live site + demos", SITE), ("Source", GITHUB), ("LinkedIn", LINKEDIN)]
@@ -103,7 +105,7 @@ def main() -> None:
         w,
         4.6,
         latin(
-            f"Five production-style systems covering the jobs fintech companies hire for: "
+            f"Six production-style systems covering the jobs fintech companies hire for: "
             f"moving money, catching fraud, approving loans, running markets, and compliance. "
             f"{meta['tests']} automated tests pass on every change across {meta['loc']:,} lines "
             f"of Python. Every number below is produced by the code itself, each project states "

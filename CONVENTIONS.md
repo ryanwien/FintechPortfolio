@@ -45,6 +45,15 @@ These apply to all five projects. CI enforces everything marked *(CI)*.
   "What I'd do next".
 - Tests must pass with `filterwarnings = error` *(CI: `pytest`)*.
 
+## The C++ project
+
+`matching-engine-cpp/` deviates from the Python layout on purpose: header-only engine under
+`src/`, a hand-rolled test framework under `tests/` (no third-party code), `Makefile` for
+g++ and `build.bat` for MSVC, both warnings-as-errors. Its test runner prints `OK <N> tests`
+and its bench writes the same `results/` trio, including the test count the dashboard shows.
+Everything else (deterministic seeds, committed results from real runs, honest limitations)
+applies unchanged.
+
 ## Front end
 
 Plain HTML/CSS/JS, no framework, no build step. `assets/js/` loads in dependency order:
