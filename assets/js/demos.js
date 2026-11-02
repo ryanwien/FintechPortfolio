@@ -360,13 +360,6 @@
     },
   };
 
-  // ---------- 06 · cpp: the C++ twin exposes the same mechanism as the Python engine ----------
-  DEMOS.cpp = {
-    ...DEMOS.exchange,
-    title: "Matching engine (C++ twin)",
-    sub: "Same book, same price-time rules as the Python engine. The C++ build runs this mechanism at millions of orders per second.",
-  };
-
   // ---------- 05 · aml: structuring rule + tamper-evident audit chain ----------
   DEMOS.aml = {
     title: "AML monitor",

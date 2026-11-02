@@ -1,6 +1,6 @@
 # Fintech Portfolio
 
-Six production-style fintech systems, each built end to end, tested against the ways it
+Five production-style fintech systems, each built end to end, tested against the ways it
 can break, and measured. Every number in every README is produced by the code next to it:
 run the project and the report regenerates.
 
@@ -37,7 +37,7 @@ twin of the matching engine to show the same design at native speed. In particul
 | 03 | [`credit-risk/`](./credit-risk) | Lending & model risk | WoE scorecard vs. monotonic GBM challenger, out-of-time validation, fair-lending tests, adverse-action reason codes, generated model card |
 | 04 | [`matching-engine/`](./matching-engine) | Trading & market infrastructure | Price-time priority limit order book, deterministic replay, property-tested invariants, event-driven backtester with fees and slippage |
 | 05 | [`aml-monitoring/`](./aml-monitoring) | Financial crime & compliance | Typology rules engine, graph analytics for mule rings and round-tripping, case management with a hash-chained audit trail and SAR narratives |
-| 06 | [`matching-engine-cpp/`](./matching-engine-cpp) | Trading & market infrastructure | The matching engine rebuilt in C++20: same order types, same priority and self-trade rules, same tests, 20x the throughput on the same machine |
+| 04b | [`matching-engine-cpp/`](./matching-engine-cpp) | Trading & market infrastructure | The same engine rebuilt in C++20: identical order types, priority and self-trade rules, ported tests, 20x the throughput on the same machine |
 
 ## 🚀 Quick Start
 
@@ -150,7 +150,7 @@ are in [CONVENTIONS.md](./CONVENTIONS.md).
 ├── credit-risk/         03 · credit underwriting & model risk
 ├── matching-engine/     04 · limit order book + backtester
 ├── aml-monitoring/      05 · AML monitoring & case management
-├── matching-engine-cpp/ 06 · the matching engine in C++20, 20x faster
+├── matching-engine-cpp/ 04b · the same engine in C++20, 20x faster
 ├── index.html           dashboard shell (views are <template>s, filled by JS)
 ├── assets/js/           front end, no build step: util, catalog, charts, sfx, app, demos
 ├── assets/data.js       generated: every project's results bundled for the dashboard

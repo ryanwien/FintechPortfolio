@@ -101,8 +101,46 @@ def load_project(name: str) -> dict[str, Any]:
     return data
 
 
+def merge_cpp_twin(py: dict[str, Any], cpp: dict[str, Any]) -> dict[str, Any]:
+    """Fold the C++ twin into the Python engine's entry: one system, two implementations.
+
+    The dashboard shows a single Matching engine with both languages' numbers; the repo
+    keeps the two folders separate.
+    """
+
+    def metric(src: dict[str, Any], i: int, label: str) -> dict[str, Any]:
+        return {**src["metrics"][i], "label": label}
+
+    merged = dict(py)
+    merged["title"] = "Limit order book matching engine, in Python and C++"
+    merged["tagline"] = (
+        "One price-time priority book, implemented twice: a Python reference with an "
+        "event-driven backtester, and a C++20 twin with identical rules and ported tests "
+        "running twenty times faster on the same machine."
+    )
+    merged["stack"] = py["stack"] + [s for s in cpp["stack"] if s not in py["stack"]]
+    merged["tests"] = py["tests"] + cpp["tests"]
+    merged["loc"] = py["loc"] + cpp["loc"]
+    merged["metrics"] = [
+        metric(cpp, 0, "Engine throughput (C++ twin)"),
+        metric(cpp, 2, "C++ speedup vs Python"),
+        metric(py, 0, "Engine throughput (Python)"),
+        metric(cpp, 1, "p99 per-order latency (C++)"),
+        py["metrics"][3],
+    ]
+    merged["extra_series"] = [{**cpp["series"], "short": "C++"}, *py.get("extra_series", [])]
+    merged["series"] = {**py["series"], "short": "Python"}
+    twin_heading = "\n\n---\n\n# The C++ twin (matching-engine-cpp/)\n\n"
+    merged["report"] = py["report"] + twin_heading + cpp["report"]
+    return merged
+
+
 def main() -> None:
-    projects = [load_project(name) for name in PROJECTS]
+    by_name = {name: load_project(name) for name in PROJECTS}
+    by_name["matching-engine"] = merge_cpp_twin(
+        by_name["matching-engine"], by_name.pop("matching-engine-cpp")
+    )
+    projects = list(by_name.values())
     meta = {
         "tests": sum(p["tests"] for p in projects),
         "loc": sum(p["loc"] for p in projects),
