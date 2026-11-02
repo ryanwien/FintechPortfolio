@@ -13,7 +13,7 @@ Please use GitHub's private vulnerability reporting:
 **Security → Report a vulnerability** on this repository
 (or <https://github.com/ryanwien/FintechPortfolio/security/advisories/new>).
 
-Alternatively, reach me via [LinkedIn](https://www.linkedin.com/in/ryanwien3d).
+Alternatively, reach me via [LinkedIn](https://www.linkedin.com/in/ryan-wien).
 
 Please do not open a public issue for anything you believe is exploitable.
 

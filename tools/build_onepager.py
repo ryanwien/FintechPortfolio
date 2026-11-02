@@ -17,7 +17,7 @@ from fpdf import FPDF
 ROOT: Final = Path(__file__).resolve().parent.parent
 OUT: Final = ROOT / "RyanWien-Fintech-Portfolio.pdf"
 SITE: Final = "ryanwien.github.io/FintechPortfolio"
-LINKEDIN: Final = "linkedin.com/in/ryanwien3d"
+LINKEDIN: Final = "linkedin.com/in/ryan-wien"
 GITHUB: Final = "github.com/ryanwien/FintechPortfolio"
 
 INK = (17, 20, 17)
