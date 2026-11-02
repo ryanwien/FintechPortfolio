@@ -23,7 +23,7 @@ from credit.reasons import STATEMENT_BY_CODE, reason_codes
 from credit.scorecard import Scorecard
 from credit.serialize import SCORE_DECIMALS, rnd
 from credit.strategy import UnitEconomics, cutoff_table, profit_maximising_cutoff
-from credit.woe import iv_strength
+from credit.woe import FeatureBinning, iv_strength
 
 CENTS_PER_DOLLAR: Final[int] = 100
 
@@ -131,10 +131,7 @@ def feature_iv_rows(
     # IV and coefficient come from the development fit; CSI compares the development
     # and OOT bin mix for each characteristic.
     for f, b in champion.binner.binnings.items():
-        # bin_index gives -1 for unseen categories; clip(0) folds them into bin 0 so that
-        # bincount accepts them. Both windows are counted the same way.
-        dev_cnt = np.bincount(b.bin_index(dev_tr[f]).clip(0), minlength=len(b.labels))
-        oot_cnt = np.bincount(b.bin_index(oot[f]).clip(0), minlength=len(b.labels))
+        dev_cnt, oot_cnt = _stability_counts(b, dev_tr[f], oot[f])
         rows.append(
             {
                 "feature": f,
@@ -149,6 +146,29 @@ def feature_iv_rows(
     # Strongest characteristics first, as the report table expects.
     rows.sort(key=lambda r: -r["iv"])
     return rows
+
+
+def _stability_counts(
+    b: FeatureBinning, dev: pd.Series, oot: pd.Series
+) -> tuple[np.ndarray, np.ndarray]:
+    """Per-bin counts for both windows, with unseen levels in a shared trailing bin.
+
+    ``bin_index`` gives -1 for a category absent from development. Those observations get
+    an extra bin appended to both windows so they register as drift rather than being
+    folded into bin 0. The bin is appended only when at least one window has any, so a
+    characteristic without unseen levels keeps exactly the fitted bins (and the CSI the
+    smoothing in ``psi_from_counts`` would otherwise shift).
+    """
+    dev_idx = b.bin_index(dev)
+    oot_idx = b.bin_index(oot)
+    dev_cnt = np.bincount(dev_idx[dev_idx >= 0], minlength=len(b.labels))
+    oot_cnt = np.bincount(oot_idx[oot_idx >= 0], minlength=len(b.labels))
+    dev_unseen = int((dev_idx < 0).sum())
+    oot_unseen = int((oot_idx < 0).sum())
+    if dev_unseen or oot_unseen:
+        dev_cnt = np.append(dev_cnt, dev_unseen)
+        oot_cnt = np.append(oot_cnt, oot_unseen)
+    return dev_cnt, oot_cnt
 
 
 def adverse_action_summary(
