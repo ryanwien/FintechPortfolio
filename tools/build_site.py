@@ -135,6 +135,31 @@ def merge_cpp_twin(py: dict[str, Any], cpp: dict[str, Any]) -> dict[str, Any]:
     return merged
 
 
+def stamp_assets() -> str:
+    """Version-stamp index.html's local asset URLs with a hash of their content.
+
+    Browsers cache assets per URL, so without this a visitor can mix a fresh page with
+    a stale cached data.js (or vice versa). A content hash in the query string makes
+    every asset change a new URL; unchanged assets keep their cached copy.
+    """
+    import hashlib
+    import re as _re
+
+    html = ROOT / "index.html"
+    text = html.read_text(encoding="utf-8")
+    pattern = _re.compile(r'"(assets/[\w/.-]+\.(?:css|js))\?v=\w*"')
+    refs = pattern.findall(text)
+    if not refs:
+        raise SystemExit("index.html has no versioned asset references to stamp")
+    digest = hashlib.sha1(usedforsecurity=False)
+    for ref in sorted(set(refs)):
+        digest.update((ROOT / ref).read_bytes())
+    stamp = digest.hexdigest()[:10]
+    text = pattern.sub(lambda m: f'"{m.group(1)}?v={stamp}"', text)
+    html.write_text(text, encoding="utf-8")
+    return stamp
+
+
 def main() -> None:
     by_name = {name: load_project(name) for name in PROJECTS}
     by_name["matching-engine"] = merge_cpp_twin(
@@ -152,9 +177,10 @@ def main() -> None:
         f"window.PORTFOLIO_META = {json.dumps(meta)};\n",
         encoding="utf-8",
     )
+    stamp = stamp_assets()
     print(
         f"wrote {out.relative_to(ROOT)}: {len(projects)} projects, "
-        f"{meta['tests']} tests, {meta['loc']} lines"
+        f"{meta['tests']} tests, {meta['loc']} lines, asset stamp v={stamp}"
     )
 
 
