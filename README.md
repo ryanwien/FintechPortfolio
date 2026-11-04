@@ -6,6 +6,8 @@ run the project and the report regenerates.
 
 **Live dashboard:** [ryanwien.github.io/FintechPortfolio](https://ryanwien.github.io/FintechPortfolio/)
 
+[![The dashboard: 413 passing tests across five systems, with per-system metrics and charts](docs/media/dashboard.png)](https://ryanwien.github.io/FintechPortfolio/)
+
 ## Motivation
 
 Fintech software has an unusual property: being almost right is the same as being wrong.
@@ -38,6 +40,25 @@ twin of the matching engine to show the same design at native speed. In particul
 | 04 | [`matching-engine/`](./matching-engine) | Trading & market infrastructure | Price-time priority limit order book, deterministic replay, property-tested invariants, event-driven backtester with fees and slippage |
 | 05 | [`aml-monitoring/`](./aml-monitoring) | Financial crime & compliance | Typology rules engine, graph analytics for mule rings and round-tripping, case management with a hash-chained audit trail and SAR narratives |
 | 04b | [`matching-engine-cpp/`](./matching-engine-cpp) | Trading & market infrastructure | The same engine rebuilt in C++20: identical order types, priority and self-trade rules, ported tests, 20x the throughput on the same machine |
+
+### See it running
+
+Every system has an interactive in-browser demo on the dashboard. The order book fills
+market orders live with price-time priority, and the ledger replays idempotent retries
+and bounces overdrafts while the books stay balanced:
+
+<p align="center">
+  <a href="https://ryanwien.github.io/FintechPortfolio/"><img src="docs/media/demo-orderbook.gif" width="48%" alt="Animated demo: market orders sweeping the limit order book, fills logged with price-time priority"></a>
+  <a href="https://ryanwien.github.io/FintechPortfolio/"><img src="docs/media/demo-ledger.png" width="48%" alt="Ledger demo: a posted transfer, an idempotent replay, a rejected overdraft, and a zero trial balance"></a>
+</p>
+
+<details>
+<summary>More screenshots: the merged Python + C++ engine page and the JD coverage matrix</summary>
+<p align="center">
+  <img src="docs/media/matching-engine.png" width="49%" alt="Matching engine page: 4,321,213 orders per second in the C++ twin, with Python and C++ chart tabs">
+  <img src="docs/media/jd-coverage.png" width="49%" alt="JD coverage matrix mapping common fintech job requirements to the system that demonstrates each">
+</p>
+</details>
 
 ## 🚀 Quick Start
 
