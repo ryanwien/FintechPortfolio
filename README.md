@@ -54,7 +54,7 @@ and bounces overdrafts while the books stay balanced:
 
 Prefer video? A 21 second tour of the dashboard, the Python and C++ engine page, and three
 demos firing (order book fills, a fraud decline with reason codes, an AML structuring alert):
-**[▶ watch tour.mp4](docs/media/tour.mp4)** (GitHub plays it in the browser).
+**[▶ watch tour.mp4](https://ryanwien.github.io/FintechPortfolio/docs/media/tour.mp4)** (plays in the browser).
 
 <details>
 <summary>More screenshots: the merged Python + C++ engine page and the JD coverage matrix</summary>
