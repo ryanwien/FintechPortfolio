@@ -52,9 +52,11 @@ and bounces overdrafts while the books stay balanced:
   <a href="https://ryanwien.github.io/FintechPortfolio/"><img src="docs/media/demo-ledger.png" width="48%" alt="Ledger demo: a posted transfer, an idempotent replay, a rejected overdraft, and a zero trial balance"></a>
 </p>
 
-Prefer video? A 21 second tour of the dashboard, the Python and C++ engine page, and three
-demos firing (order book fills, a fraud decline with reason codes, an AML structuring alert):
-**[▶ watch tour.mp4](https://ryanwien.github.io/FintechPortfolio/docs/media/tour.mp4)** (plays in the browser).
+A 21 second tour: the dashboard, the Python and C++ engine page, and three demos firing
+(order book fills, a fraud decline with reason codes, an AML structuring alert). Also as
+**[▶ tour.mp4](https://ryanwien.github.io/FintechPortfolio/docs/media/tour.mp4)**.
+
+[![Video tour: dashboard, the engine page in both languages, order book fills, a fraud decline with reason codes, and an AML structuring alert](docs/media/tour.gif)](https://ryanwien.github.io/FintechPortfolio/)
 
 <details>
 <summary>More screenshots: the merged Python + C++ engine page and the JD coverage matrix</summary>
